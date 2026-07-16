@@ -1,0 +1,20 @@
+{
+  "name": "cookhoard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Recetas de la comunidad + makes (estilo Cults3D) + recomendador de nevera con temporada y zona. Clon de Watch Hoard para cocinar. Local-first, autoalojable.",
+  "license": "AGPL-3.0-or-later",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "mobile": "npm run start --workspace @cookhoard/mobile",
+    "web": "npm run web --workspace @cookhoard/mobile",
+    "test:core": "tsx packages/core/test/run.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "~5.6.0"
+  }
+}
