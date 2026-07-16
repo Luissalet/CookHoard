@@ -194,4 +194,15 @@ export default function Publish() {
   );
 }
 
-const styles = StyleSheet.creat
+const styles = StyleSheet.create({
+  seg: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.md, padding: 4, borderWidth: 1, borderColor: colors.border },
+  segItem: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: radius.sm },
+  segOn: { backgroundColor: colors.accent },
+  sChip: { backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8, marginRight: 6, marginBottom: 6 },
+  sChipOn: { backgroundColor: colors.ready },
+  remixBanner: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: space(3), paddingVertical: space(2.5), marginBottom: space(3) },
+  listRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: space(2), borderBottomWidth: 1, borderBottomColor: colors.border },
+  timerBadge: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: 8, paddingVertical: 4, marginRight: 8 },
+  input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, color: colors.text, paddingHorizontal: space(3), paddingVertical: space(2.5), fontSize: 15, marginTop: space(2) },
+  addBtn: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginLeft: 6, marginTop: space(2) },
+});

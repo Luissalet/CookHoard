@@ -272,4 +272,3 @@ const styles = StyleSheet.create({
   segItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill },
   segOn: { backgroundColor: colors.accent },
 });
-          

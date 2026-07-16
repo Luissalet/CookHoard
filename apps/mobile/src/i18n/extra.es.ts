@@ -52,4 +52,5 @@ export default {
     published: 'publicó', remixed: 'remezcló',
     emptyLocal: 'Tu diario de cocina: publica, cocina o remezcla algo y aparecerá aquí.',
   },
-  auth: { title: 'CookHoard', subtitle: 'Entra para sincronizar y seguir a otros cocineros', email: 'Email', password: 'Contraseña', signIn: 'Entrar', signUp: 'Crear cuenta', toggleUp: '¿No tiene
+  auth: { title: 'CookHoard', subtitle: 'Entra para sincronizar y seguir a otros cocineros', email: 'Email', password: 'Contraseña', signIn: 'Entrar', signUp: 'Crear cuenta', toggleUp: '¿No tienes cuenta? Crea una', toggleIn: '¿Ya tienes cuenta? Entra' },
+} as const;

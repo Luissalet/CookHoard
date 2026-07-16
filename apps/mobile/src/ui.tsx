@@ -220,4 +220,8 @@ const s = StyleSheet.create({
   input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, color: colors.text, paddingHorizontal: space(3), paddingVertical: space(2.5), fontSize: 15 },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: space(12) },
   sectionTitle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space(4), marginBottom: space(2) },
-  thumb: { width: 58, height: 58, borderWidth: 1, borderColor: colors.border, backgroundCol
+  thumb: { width: 58, height: 58, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  tile: { width: 148, marginRight: space(2.5), backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: space(2.5) },
+  tileThumb: { height: 76, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  tileBadge: { position: 'absolute', top: 6, right: 6 },
+});

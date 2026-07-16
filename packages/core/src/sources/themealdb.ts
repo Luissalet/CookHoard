@@ -40,4 +40,8 @@ export function mealToRecipe(meal: TheMealDBMeal): Recipe {
     heaviness: tags.heaviness,
     seasonAffinity: tags.seasonAffinity,
     ingredients,
-    ste
+    steps,
+    createdAt: new Date().toISOString(),
+    makeCount: 0,
+  };
+}

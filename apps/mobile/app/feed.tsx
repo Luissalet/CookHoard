@@ -61,4 +61,7 @@ export default function Feed() {
             </Card>
           );
         })
-      
+      )}
+    </Screen>
+  );
+}

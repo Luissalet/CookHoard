@@ -85,4 +85,8 @@ export function parseJsonLdRecipe(json: JsonLdRecipe, id: string, authorId = 'im
     heaviness: tags.heaviness,
     seasonAffinity: tags.seasonAffinity,
     ingredients,
-    step
+    steps,
+    createdAt: new Date().toISOString(),
+    makeCount: 0,
+  };
+}

@@ -53,4 +53,6 @@ export default {
     language: 'Idioma', about: 'Acerca de', aboutText: 'CookHoard — recetas de la comunidad, makes y recomendador de nevera. Local-first.',
   },
   temp: { hot: 'Caliente', cold: 'Frío', room: 'Templado' },
-  heavy: { 1: 'Ligera', 
+  heavy: { 1: 'Ligera', 2: 'Media', 3: 'Contundente' },
+  season: { spring: 'Primavera', summer: 'Verano', autumn: 'Otoño', winter: 'Invierno', all: 'Todo el año' },
+} as const;

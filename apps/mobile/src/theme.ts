@@ -29,4 +29,13 @@ export const mono = Platform.select({
 }) as string;
 
 export const font = {
-  display: { fontSize: 24, fontWeight: '700' as const, colo
+  display: { fontSize: 24, fontWeight: '700' as const, color: colors.text, letterSpacing: 1, textTransform: 'uppercase' as const },
+  h1: { fontSize: 20, fontWeight: '700' as const, color: colors.text, letterSpacing: 0.5 },
+  h2: { fontSize: 14, fontWeight: '700' as const, color: colors.text, letterSpacing: 1, textTransform: 'uppercase' as const },
+  h3: { fontSize: 15, fontWeight: '600' as const, color: colors.text },
+  body: { fontSize: 15, color: colors.text },
+  muted: { fontSize: 13, color: colors.textMuted },
+  tiny: { fontSize: 11, color: colors.textMuted, fontFamily: mono },
+  label: { fontSize: 10, color: colors.textMuted, fontFamily: mono, letterSpacing: 1, textTransform: 'uppercase' as const },
+  mono: { fontFamily: mono, color: colors.text },
+};

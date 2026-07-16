@@ -54,4 +54,9 @@ export default function Import() {
               <Text style={font.tiny}>{preview.ingredients.length} ingredientes · {preview.steps.length} pasos</Text>
             </View>
           </Card>
-          <Btn label={t('import.save')} icon="checkmark" onPress={save} style={{ marginTop: spac
+          <Btn label={t('import.save')} icon="checkmark" onPress={save} style={{ marginTop: space(2) }} />
+        </>
+      ) : null}
+    </Screen>
+  );
+}

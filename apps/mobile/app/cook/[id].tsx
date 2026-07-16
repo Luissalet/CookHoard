@@ -164,4 +164,74 @@ export default function CookMode() {
               <Pressable style={s.tBtn} onPress={toggleTimer}>
                 <Ionicons name={tm?.running ? 'pause' : 'play'} size={18} color={colors.accentInk} />
                 <Text style={s.tBtnTxt}>
-                  {tm
+                  {tm?.running ? t('cook.pause') : tm?.done ? t('cook.restart') : t('cook.startTimer')}
+                </Text>
+              </Pressable>
+              <Pressable style={[s.tBtn, { backgroundColor: colors.surfaceAlt }]} onPress={resetTimer}>
+                <Ionicons name="refresh" size={18} color={colors.text} />
+                <Text style={[s.tBtnTxt, { color: colors.text }]}>{t('cook.reset')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Cookalong bar: every started timer, still ticking across steps. Tap → jump; done → dismiss. */}
+      {activeEntries.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.timerBar} contentContainerStyle={{ paddingHorizontal: space(4), gap: 8 }}>
+          {activeEntries.map((e) => (
+            <Pressable
+              key={e.step}
+              onPress={() => (e.done ? setTimers((p) => { const { [e.step]: _x, ...rest } = p; return rest; }) : setIdx(e.step))}
+              style={[s.timerChip, e.done && { backgroundColor: colors.ready, borderColor: colors.ready }, !e.running && !e.done && { opacity: 0.6 }]}
+            >
+              <Ionicons name={e.done ? 'checkmark' : e.running ? 'timer-outline' : 'pause'} size={14} color={e.done ? colors.accentInk : colors.text} />
+              <Text style={[s.timerChipTxt, e.done && { color: colors.accentInk }]}>
+                {t('cook.timerChip', { n: e.step + 1 })} · {e.done ? t('cook.timerDone') : formatTimer(e.remaining)}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Bottom nav */}
+      <View style={s.bottom}>
+        <Pressable
+          style={[s.nav, { backgroundColor: colors.surfaceAlt, opacity: idx === 0 ? 0.4 : 1 }]}
+          disabled={idx === 0}
+          onPress={() => setIdx((i) => Math.max(0, i - 1))}
+        >
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <Text style={{ color: colors.text, fontWeight: '800' }}>{t('cook.prev')}</Text>
+        </Pressable>
+        <Pressable
+          style={[s.nav, { backgroundColor: last ? colors.ready : colors.accent, flex: 1.4 }]}
+          onPress={() => (last ? router.replace(`/make/${recipe.id}`) : setIdx((i) => i + 1))}
+        >
+          <Text style={{ color: colors.accentInk, fontWeight: '800' }} numberOfLines={1}>
+            {last ? t('cook.finish') : t('cook.next')}
+          </Text>
+          {!last && <Ionicons name="chevron-forward" size={20} color={colors.accentInk} />}
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  top: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space(4), paddingTop: space(2) },
+  close: { width: 38, height: 38, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  progressTrack: { height: 4, backgroundColor: colors.surfaceAlt },
+  progressFill: { height: 4, backgroundColor: colors.accent },
+  stepText: { fontSize: 26, lineHeight: 36, fontWeight: '700', color: colors.text },
+  ing: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: 12, paddingVertical: 7, marginRight: 8, marginBottom: 8 },
+  timer: { fontSize: 60, fontWeight: '700', color: colors.text, fontFamily: mono, fontVariant: ['tabular-nums'] },
+  tBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.accent, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 18, paddingVertical: 10, marginHorizontal: 6 },
+  tBtnTxt: { color: colors.accentInk, fontWeight: '700', fontSize: 13, letterSpacing: 1, textTransform: 'uppercase', marginLeft: 6 },
+  timerBar: { maxHeight: 44, marginBottom: space(1) },
+  timerChip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: 12, paddingVertical: 8, gap: 5 },
+  timerChipTxt: { color: colors.text, fontWeight: '600', fontSize: 12, fontFamily: mono, fontVariant: ['tabular-nums'] },
+  bottom: { flexDirection: 'row', padding: space(4), gap: space(2) },
+  nav: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: radius.md, gap: 4 },
+});

@@ -94,4 +94,5 @@ const styles = StyleSheet.create({
   seg: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.md, padding: 4, borderWidth: 1, borderColor: colors.border, marginBottom: space(3) },
   segItem: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: radius.sm },
   segOn: { backgroundColor: colors.surfaceAlt },
-  thumb: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' }
+  thumb: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+});

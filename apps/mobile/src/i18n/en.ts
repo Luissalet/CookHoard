@@ -53,4 +53,6 @@ export default {
     language: 'Language', about: 'About', aboutText: 'CookHoard — community recipes, makes and a fridge recommender. Local-first.',
   },
   temp: { hot: 'Hot', cold: 'Cold', room: 'Room temp' },
-  heavy: { 1: 'Light', 2: '
+  heavy: { 1: 'Light', 2: 'Medium', 3: 'Hearty' },
+  season: { spring: 'Spring', summer: 'Summer', autumn: 'Autumn', winter: 'Winter', all: 'All year' },
+} as const;

@@ -133,4 +133,23 @@ ok(dLen.rows[1]!.newIngredients.includes('lentil'), 'lentejas: la lenteja entra 
 ok(buildDiagram(R('tortilla_patatas')).finalBranches.length === 1, 'tortilla: converge en un solo flujo');
 
 console.log('\n— Temporizadores (detectTimer) —');
-ok(detectTimer('Hornea a 200 ºC durante 20 min.') === 1200,
+ok(detectTimer('Hornea a 200 ºC durante 20 min.') === 1200, 'ES: "20 min" → 1200s (y no confunde los 200 ºC)');
+ok(detectTimer('Cuece a fuego lento 45 minutos.') === 2700, 'ES: "45 minutos"');
+ok(detectTimer('Deja reposar 1 h 30 min.') === 5400, 'ES: "1 h 30 min" compuesto');
+ok(detectTimer('Enfría al menos 2 h.') === 7200, 'ES: "2 h"');
+ok(detectTimer('Cuece 2 horas y media.') === 9000, 'ES: "2 horas y media"');
+ok(detectTimer('Reposa media hora tapado.') === 1800, 'ES: "media hora"');
+ok(detectTimer('Hornea 10-12 min hasta dorar.') === 600, 'ES: rango "10-12 min" → cota inferior');
+ok(detectTimer('Fríe 3 a 4 minutos por lado.') === 180, 'ES: rango "3 a 4 minutos"');
+ok(detectTimer('Bate 30 segundos.') === 30, 'ES: segundos');
+ok(detectTimer('Bake for 25 minutes at 400F.') === 1500, 'EN: "25 minutes"');
+ok(detectTimer('Simmer for an hour and a half.') === 5400, 'EN: "an hour and a half"');
+ok(detectTimer('Rest for half an hour.') === 1800, 'EN: "half an hour"');
+ok(detectTimer('Añade 200 ml de agua y sal.') === undefined, 'no confunde "200 ml" con minutos');
+ok(detectTimer('Pica la cebolla fina.') === undefined, 'paso sin tiempo → undefined');
+ok(detectTimer('Hornea a 180 grados.') === undefined, 'temperatura sola → undefined');
+ok(formatTimer(90) === '1:30' && formatTimer(3661) === '1:01:01', 'formatTimer: mm:ss y h:mm:ss');
+
+console.log(`\n${failures === 0 ? '🎉 Todos los tests pasan' : `💥 ${failures} test(s) fallan`}`);
+process.exit(failures === 0 ? 0 : 1);
+

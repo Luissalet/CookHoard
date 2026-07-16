@@ -17,4 +17,4 @@ export * from './timers';
 export * from './importer';
 export * from './sources/themealdb';
 export * from './sources/spoonacular';
-export * from '
+export * from './sources/openfoodfacts';

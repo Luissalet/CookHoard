@@ -52,4 +52,5 @@ export default {
     published: 'published', remixed: 'remixed',
     emptyLocal: 'Your cooking diary: publish, cook or remix something and it shows up here.',
   },
-  auth: { title: 'CookHoard', subtitle: 'Sign in to sync and follow other cooks', email: 'Email', password: 'Password', signIn: 'Sign in', signUp: 'Sign up', toggleUp: 'No 
+  auth: { title: 'CookHoard', subtitle: 'Sign in to sync and follow other cooks', email: 'Email', password: 'Password', signIn: 'Sign in', signUp: 'Sign up', toggleUp: 'No account? Create one', toggleIn: 'Have an account? Sign in' },
+} as const;
