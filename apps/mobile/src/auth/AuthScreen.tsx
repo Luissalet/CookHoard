@@ -79,6 +79,15 @@ export function AuthScreen({ initialMode = 'signup', onBack }: { initialMode?: M
           options: { data: { handle: h, display_name: displayName.trim() || null, locale: currentLanguage() } },
         });
         if (error) throw error;
+        // Anti-enumeration: when the email is ALREADY registered (and confirmations are on),
+        // Supabase returns success with a user whose identities array is empty — no error,
+        // no session. Detect that and show the real "already registered" message instead of
+        // routing to the check-email screen.
+        const identities = (data.user as any)?.identities;
+        if (Array.isArray(identities) && identities.length === 0) {
+          setMsg(t('auth.errAlreadyRegistered'));
+          return;
+        }
         // Instant access: if a session appears the gate opens on its own. Otherwise the
         // account needs email confirmation, so swap in the dedicated "check your email" view.
         if (!data.session) {
