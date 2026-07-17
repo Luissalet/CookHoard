@@ -1,11 +1,36 @@
-// Shopping list = the union of missing core ingredients across chosen recipes, given the pantry.
+// Unified pantry/shopping list. A single list of ingredient items where `checked` means
+// "I have this" (it's in the fridge/pantry and counts for recipe matching); unchecked means
+// "I need to buy it". The Fridge tab shows the checked items, the Shopping list the unchecked
+// ones. As you use something up, you uncheck it and it reappears on the shopping list.
 import type { Recipe } from './types';
 import { coreIngredientIds } from './recommend';
 
+// Quantity units offered in the manual add UI.
+export type ShopUnit = 'ud' | 'L' | 'kg';
+export const SHOP_UNITS: ShopUnit[] = ['ud', 'L', 'kg'];
+
 export interface ShoppingItem {
-  ingredientId: string;
-  fromRecipes: string[]; // recipe ids that need it
-  checked?: boolean;
+  ingredientId: string;   // canonical dictionary id, or a free-text slug for custom items
+  fromRecipes: string[];  // recipe ids that need it (empty for manually added items)
+  name?: string;          // custom label for free-text items not in the dictionary
+  qty?: number;           // optional amount
+  unit?: ShopUnit;        // optional unit for the amount
+  checked?: boolean;      // true = you have it (in the fridge); false/undefined = to buy
+}
+
+/** Build a manual item (free-text or resolved dictionary id). */
+export function manualShoppingItem(
+  ingredientId: string,
+  opts: { name?: string; qty?: number; unit?: ShopUnit; checked?: boolean } = {},
+): ShoppingItem {
+  return {
+    ingredientId,
+    fromRecipes: [],
+    name: opts.name,
+    qty: opts.qty,
+    unit: opts.unit,
+    checked: opts.checked ?? false,
+  };
 }
 
 /** Build a shopping list from recipes, excluding what you already have (pantry + staples). */

@@ -5,8 +5,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  SEED_RECIPES, mergeShopping, type Recipe, type Make, type Hemisphere,
-  type ShoppingItem, type PantryItem,
+  SEED_RECIPES, mergeShopping, manualShoppingItem, resolveIngredient, INGREDIENT_BY_ID,
+  type Recipe, type Make, type Hemisphere, type ShoppingItem, type ShopUnit, type PantryItem,
 } from '@cookhoard/core';
 import { isCloud } from './cloud/backend';
 import { CloudSource } from './cloud/source';
@@ -33,6 +33,10 @@ type Ctx = {
   setExpiry: (id: string, date: string | null) => void; toggleSaved: (id: string) => void;
   addShopping: (items: ShoppingItem[]) => void; toggleShopping: (id: string) => void;
   removeShopping: (id: string) => void; clearShopping: () => void;
+  // Unified list: add a manual item (resolves free text to a dictionary id when possible);
+  // patch qty/unit/name of an existing item.
+  addShoppingManual: (name: string, opts?: { qty?: number; unit?: ShopUnit; checked?: boolean }) => void;
+  updateShopping: (id: string, patch: Partial<Pick<ShoppingItem, 'qty' | 'unit' | 'name'>>) => void;
   setMonth: (m: number) => void; setHemisphere: (h: Hemisphere) => void;
 };
 
@@ -44,10 +48,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [userRecipes, setUserRecipes] = useState<Recipe[]>([]);
   const [sessionRecipes, setSessionRecipes] = useState<Recipe[]>([]);
   const [makes, setMakes] = useState<Make[]>([]);
-  const [pantry, setPantry] = useState<string[]>([]);
   const [pantryExpiry, setPantryExpiry] = useState<Record<string, string>>({});
   const [savedIds, setSavedIds] = useState<string[]>([]);
+  // Single source of truth for both the fridge and the shopping list. checked = you have it.
   const [shopping, setShopping] = useState<ShoppingItem[]>([]);
+  // The fridge/pantry is simply the checked items — derived, never stored separately.
+  const pantry = useMemo(() => shopping.filter((i) => i.checked).map((i) => i.ingredientId), [shopping]);
   const [month, setMonthState] = useState<number>(new Date().getMonth() + 1);
   const [hemisphere, setHemisphereState] = useState<Hemisphere>('N');
 
@@ -61,16 +67,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const { data } = await supabase.auth.getUser();
           setCloudUid(data.user?.id ?? '');
           const [rs, pan, sav] = await Promise.all([CloudSource.listRecipes(), CloudSource.getPantry(), CloudSource.getSaved()]);
-          setSessionRecipes(rs); setPantry(pan); setSavedIds(sav);
+          setSessionRecipes(rs); setSavedIds(sav);
+          // Cloud pantry ids become checked items of the unified list.
+          setShopping(pan.map((id) => manualShoppingItem(id, { checked: true })));
         } else {
           const got = await AsyncStorage.multiGet([KEYS.recipes, KEYS.makes, KEYS.pantry, KEYS.expiry, KEYS.saved, KEYS.shopping]);
           const map = Object.fromEntries(got);
           if (map[KEYS.recipes]) setUserRecipes(JSON.parse(map[KEYS.recipes]!));
           if (map[KEYS.makes]) setMakes(JSON.parse(map[KEYS.makes]!));
-          if (map[KEYS.pantry]) setPantry(JSON.parse(map[KEYS.pantry]!));
           if (map[KEYS.expiry]) setPantryExpiry(JSON.parse(map[KEYS.expiry]!));
           if (map[KEYS.saved]) setSavedIds(JSON.parse(map[KEYS.saved]!));
-          if (map[KEYS.shopping]) setShopping(JSON.parse(map[KEYS.shopping]!));
+          // Migrate the old split model (separate pantry ids + shopping list) into the
+          // unified list: shopping items keep their state, old pantry ids become checked.
+          const oldShopping: ShoppingItem[] = map[KEYS.shopping] ? JSON.parse(map[KEYS.shopping]!) : [];
+          const oldPantry: string[] = map[KEYS.pantry] ? JSON.parse(map[KEYS.pantry]!) : [];
+          setShopping(mergeShopping(oldShopping, oldPantry.map((id) => manualShoppingItem(id, { checked: true }))));
         }
       } catch {
         /* fresh start */
@@ -83,7 +94,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Persist to AsyncStorage in local mode only (cloud is the source of truth in cloud mode).
   useEffect(() => { if (ready && !isCloud) AsyncStorage.setItem(KEYS.recipes, JSON.stringify(userRecipes)); }, [userRecipes, ready]);
   useEffect(() => { if (ready && !isCloud) AsyncStorage.setItem(KEYS.makes, JSON.stringify(makes)); }, [makes, ready]);
-  useEffect(() => { if (ready && !isCloud) AsyncStorage.setItem(KEYS.pantry, JSON.stringify(pantry)); }, [pantry, ready]);
   useEffect(() => { if (ready && !isCloud) AsyncStorage.setItem(KEYS.saved, JSON.stringify(savedIds)); }, [savedIds, ready]);
   useEffect(() => { if (ready) AsyncStorage.setItem(KEYS.expiry, JSON.stringify(pantryExpiry)); }, [pantryExpiry, ready]);
   useEffect(() => { if (ready) AsyncStorage.setItem(KEYS.shopping, JSON.stringify(shopping)); }, [shopping, ready]);
@@ -113,16 +123,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     for (const r of rs) byId.set(r.id, r);
     return [...byId.values()];
   }), []);
+  // Add to the fridge = upsert an item and mark it as "have it" (checked).
   const addPantry = useCallback((id: string) => {
-    setPantry((p) => (p.includes(id) ? p : [...p, id]));
+    setShopping((p) => (p.some((i) => i.ingredientId === id)
+      ? p.map((i) => (i.ingredientId === id ? { ...i, checked: true } : i))
+      : mergeShopping(p, [manualShoppingItem(id, { checked: true })])));
     if (isCloud && cloudUid) CloudSource.addPantry(id, cloudUid);
   }, [cloudUid]);
+  // "Used it up": uncheck so it drops back onto the shopping list (kept, not deleted).
   const removePantry = useCallback((id: string) => {
-    setPantry((p) => p.filter((x) => x !== id));
+    setShopping((p) => p.map((i) => (i.ingredientId === id ? { ...i, checked: false } : i)));
     setPantryExpiry((e) => { const n = { ...e }; delete n[id]; return n; });
     if (isCloud && cloudUid) CloudSource.removePantry(id, cloudUid);
   }, [cloudUid]);
-  const clearPantry = useCallback(() => { setPantry([]); setPantryExpiry({}); }, []);
+  // Clear fridge = uncheck everything (all items move to the shopping list).
+  const clearPantry = useCallback(() => {
+    setShopping((p) => p.map((i) => ({ ...i, checked: false })));
+    setPantryExpiry({});
+    if (isCloud && cloudUid) pantry.forEach((id) => CloudSource.removePantry(id, cloudUid));
+  }, [cloudUid, pantry]);
   const setExpiry = useCallback((id: string, date: string | null) => setPantryExpiry((e) => {
     const n = { ...e }; if (date) n[id] = date; else delete n[id]; return n;
   }), []);
@@ -134,9 +153,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
   }, [cloudUid]);
   const addShopping = useCallback((items: ShoppingItem[]) => setShopping((prev) => mergeShopping(prev, items)), []);
-  const toggleShopping = useCallback((id: string) => setShopping((p) => p.map((i) => (i.ingredientId === id ? { ...i, checked: !i.checked } : i))), []);
-  const removeShopping = useCallback((id: string) => setShopping((p) => p.filter((i) => i.ingredientId !== id)), []);
-  const clearShopping = useCallback(() => setShopping([]), []);
+  // Toggling an item's checkbox flips have/need; mirror to the cloud pantry.
+  const toggleShopping = useCallback((id: string) => {
+    setShopping((p) => p.map((i) => {
+      if (i.ingredientId !== id) return i;
+      const nowHave = !i.checked;
+      if (isCloud && cloudUid) (nowHave ? CloudSource.addPantry : CloudSource.removePantry)(id, cloudUid);
+      return { ...i, checked: nowHave };
+    }));
+  }, [cloudUid]);
+  const removeShopping = useCallback((id: string) => {
+    setShopping((p) => p.filter((i) => i.ingredientId !== id));
+    setPantryExpiry((e) => { const n = { ...e }; delete n[id]; return n; });
+    if (isCloud && cloudUid) CloudSource.removePantry(id, cloudUid);
+  }, [cloudUid]);
+  // Clear the shopping list = delete only the unchecked (to-buy) items; keep the fridge.
+  const clearShopping = useCallback(() => setShopping((p) => p.filter((i) => i.checked)), []);
+  // Manual add: resolve free text to a dictionary id when possible. If it's a real dictionary
+  // ingredient we drop the typed label (so it localizes); if it's unknown we keep the label.
+  const addShoppingManual = useCallback((name: string, opts?: { qty?: number; unit?: ShopUnit; checked?: boolean }) => {
+    const raw = name.trim();
+    if (!raw) return;
+    const id = resolveIngredient(raw);
+    if (!id) return;
+    const isKnown = !!INGREDIENT_BY_ID[id];
+    const item = manualShoppingItem(id, {
+      qty: opts?.qty, unit: opts?.unit, checked: opts?.checked,
+      name: isKnown ? undefined : raw,
+    });
+    setShopping((p) => mergeShopping(p, [item]));
+  }, []);
+  const updateShopping = useCallback((id: string, patch: Partial<Pick<ShoppingItem, 'qty' | 'unit' | 'name'>>) =>
+    setShopping((p) => p.map((i) => (i.ingredientId === id ? { ...i, ...patch } : i))), []);
   const setMonth = useCallback((m: number) => setMonthState(m), []);
   const setHemisphere = useCallback((h: Hemisphere) => setHemisphereState(h), []);
 
@@ -144,7 +192,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ready, recipes, userRecipes, makes, pantry, pantryExpiry, savedIds, shopping, month, hemisphere,
     recipeById, makesFor, pantryItems, addRecipe, addMake, addSessionRecipes,
     addPantry, removePantry, clearPantry, setExpiry, toggleSaved,
-    addShopping, toggleShopping, removeShopping, clearShopping, setMonth, setHemisphere,
+    addShopping, toggleShopping, removeShopping, clearShopping,
+    addShoppingManual, updateShopping, setMonth, setHemisphere,
   };
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

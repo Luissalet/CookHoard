@@ -36,7 +36,11 @@ export default {
   diagram: { flow: 'Flow', list: 'List', dish: 'Dish ready', alsoNeeds: 'Plus', parallel: 'In parallel' },
   cookbook: { shopping: 'Shopping list', menu: 'Weekly menu', importRecipe: 'Import recipe' },
   profile: { badges: 'Badges', account: 'Account' },
-  shopping: { title: 'Shopping list', empty: 'Empty. Add what you’re missing from a recipe or the menu.', clear: 'Clear' },
+  shopping: {
+    title: 'Shopping list', empty: 'Empty. Add items here, or pull the missing ones from a recipe or the menu.', clear: 'Clear bought',
+    addPh: 'Add an item…', qty: 'Qty', toBuy: 'To buy', haveIt: 'Already have', allBought: 'All done — nothing left to buy.',
+    fromRecipe: 'from a recipe',
+  },
   menu: { title: 'Weekly menu', generate: 'Generate menu', regen: 'Shuffle', addAll: 'Missing → shopping list', day: 'Day {{n}}' },
   import: {
     title: 'Import recipe', url: 'Recipe URL (blog)', urlPh: 'https://…',

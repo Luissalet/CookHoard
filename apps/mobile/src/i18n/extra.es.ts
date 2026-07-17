@@ -36,7 +36,11 @@ export default {
   diagram: { flow: 'Flujo', list: 'Lista', dish: 'Plato listo', alsoNeeds: 'Y además', parallel: 'En paralelo' },
   cookbook: { shopping: 'Lista de la compra', menu: 'Menú semanal', importRecipe: 'Importar receta' },
   profile: { badges: 'Insignias', account: 'Cuenta' },
-  shopping: { title: 'Lista de la compra', empty: 'Vacía. Añade lo que te falte desde una receta o el menú.', clear: 'Vaciar' },
+  shopping: {
+    title: 'Lista de la compra', empty: 'Vacía. Añade cosas aquí, o trae lo que te falte desde una receta o el menú.', clear: 'Quitar comprados',
+    addPh: 'Añade algo…', qty: 'Cant.', toBuy: 'A comprar', haveIt: 'Ya lo tienes', allBought: 'Todo listo — no falta nada por comprar.',
+    fromRecipe: 'de una receta',
+  },
   menu: { title: 'Menú semanal', generate: 'Generar menú', regen: 'Otro', addAll: 'Lo que falta → a la compra', day: 'Día {{n}}' },
   import: {
     title: 'Importar receta', url: 'URL de una receta (blog)', urlPh: 'https://…',
