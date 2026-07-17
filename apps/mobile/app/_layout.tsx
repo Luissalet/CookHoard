@@ -9,7 +9,7 @@ import { loadStoredLanguage } from '../src/i18n';
 import { StoreProvider, useStore } from '../src/store';
 import { isCloud } from '../src/cloud/backend';
 import { SessionProvider, useSession } from '../src/cloud/session';
-import { AuthScreen } from '../src/auth/AuthScreen';
+import { AuthFlow } from '../src/auth/AuthFlow';
 
 function Splash() {
   return (
@@ -32,7 +32,7 @@ function Gate({ children }: { children: React.ReactNode }) {
 function CloudGate({ children }: { children: React.ReactNode }) {
   const { session, loading } = useSession();
   if (loading) return <Splash />;
-  if (!session) return <AuthScreen />;
+  if (!session) return <AuthFlow />;
   return <>{children}</>;
 }
 
@@ -55,6 +55,7 @@ function AppStack() {
       <Stack.Screen name="menu" options={{ title: '' }} />
       <Stack.Screen name="import" options={{ presentation: 'modal', title: '' }} />
       <Stack.Screen name="feed" options={{ title: '' }} />
+      <Stack.Screen name="reset-password" options={{ headerShown: false }} />
     </Stack>
   );
 }
