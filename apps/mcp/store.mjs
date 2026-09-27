@@ -7,15 +7,22 @@ export function dataFile(env = process.env) {
   return path.join(directory, 'kitchen.json');
 }
 
-export function readKitchen(file = dataFile()) {
-  if (!fs.existsSync(file)) return { version: 1, shopping: [], menu: null, recipes: [] };
-  const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+export function normalizeKitchen(parsed) {
   if (parsed?.version !== 1 || !Array.isArray(parsed.shopping) ||
       !(parsed.menu === null || (typeof parsed.menu === 'object' && Array.isArray(parsed.menu.plan?.days))) ||
-      (parsed.recipes !== undefined && !Array.isArray(parsed.recipes))) {
+      (parsed.recipes !== undefined && !Array.isArray(parsed.recipes)) ||
+      (parsed.makes !== undefined && !Array.isArray(parsed.makes)) ||
+      (parsed.savedIds !== undefined && !Array.isArray(parsed.savedIds)) ||
+      (parsed.pantryExpiry !== undefined && (typeof parsed.pantryExpiry !== 'object' || Array.isArray(parsed.pantryExpiry)))) {
     throw new Error('Los datos de cocina tienen un formato desconocido; no se sobrescribieron.');
   }
-  return { ...parsed, recipes: parsed.recipes || [] };
+  return { ...parsed, recipes: parsed.recipes || [], makes: parsed.makes || [],
+    savedIds: parsed.savedIds || [], pantryExpiry: parsed.pantryExpiry || {} };
+}
+
+export function readKitchen(file = dataFile()) {
+  if (!fs.existsSync(file)) return { version: 1, shopping: [], menu: null, recipes: [], makes: [], savedIds: [], pantryExpiry: {} };
+  return normalizeKitchen(JSON.parse(fs.readFileSync(file, 'utf8')));
 }
 
 export function writeKitchen(state, file = dataFile()) {

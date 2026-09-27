@@ -12,5 +12,5 @@
     "env": {},
     "optional_env": ["COOKHOARD_DATA_DIR"]
   },
-  "notes": "Run npm install once in CookHoard. Faustus launches the MCP process directly; kitchen data is saved locally under COOKHOARD_DATA_DIR or the user's local app-data folder. The existing mobile app is optional."
+  "notes": "Run npm install once in CookHoard. Faustus launches the MCP process directly; kitchen data is saved locally under COOKHOARD_DATA_DIR or the user's local app-data folder. No website, domain or Supabase service is needed."
 }

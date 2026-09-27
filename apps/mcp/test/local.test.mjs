@@ -66,3 +66,45 @@ test('Faustus-compatible stdio MCP starts from an unrelated cwd', async () => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('local cookbook keeps structured recipes, cooking history and expiry on disk', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cookhoard-features-'));
+  process.env.COOKHOARD_DATA_DIR = directory;
+  try {
+    const saved = await callTool('save_recipe', { title: 'Tortilla de prueba', servings: 2,
+      ingredients: [{ name: 'huevo', quantity: 3, unit: 'ud' }, { name: 'patata', quantity: 0.5, unit: 'kg' }],
+      steps: [{ text: 'Batir huevos', timerSec: 60 }, 'Cocinar'], temperature: 'hot' });
+    const id = saved.recipe.id;
+    assert.equal(saved.recipe.servings, 2);
+    assert.equal(saved.recipe.ingredients[0].quantity, 3);
+    assert.equal((await callTool('get_recipe', { recipe_id: id })).steps[0].timerSec, 60);
+    await callTool('update_recipe', { recipe_id: id, changes: { servings: 4, description: 'Más raciones' } });
+    assert.equal((await callTool('get_recipe', { recipe_id: id })).servings, 4);
+    await callTool('set_recipe_saved', { recipe_id: id, saved: true });
+    assert.equal((await callTool('saved_recipes')).recipes[0].id, id);
+    const cooking = await callTool('record_cooking', { recipe_id: id, rating: 5,
+      notes: 'Salió bien', would_repeat: true });
+    assert.equal(cooking.cooking.rating, 5);
+    assert.equal((await callTool('cooking_history', { recipe_id: id })).cooking.length, 1);
+    await callTool('add_kitchen_item', { name: 'huevo', checked: true });
+    await callTool('set_expiry', { ingredient_id: 'egg', expires_at: '2020-01-01' });
+    const expiring = await callTool('use_expiring', { within_days: 3 });
+    assert.ok(expiring.expiring.some((item) => item.ingredientId === 'egg'));
+    assert.ok(expiring.recipes.some((item) => item.recipe.id === id));
+    const backup = await callTool('export_kitchen');
+    assert.equal(backup.kitchen.recipes[0].servings, 4);
+    assert.equal(readKitchen().makes.length, 1);
+    await callTool('delete_recipe', { recipe_id: id });
+    assert.equal((await callTool('find_recipes', { query: 'Tortilla de prueba' })).recipes.length, 0);
+    assert.equal((await callTool('cooking_history', { recipe_id: id })).cooking.length, 1);
+    const imported = await callTool('import_kitchen', { snapshot_json: JSON.stringify(backup.kitchen) });
+    assert.equal(imported.recipes, 1);
+    assert.equal((await callTool('get_recipe', { recipe_id: id })).servings, 4);
+    await callTool('import_kitchen', { snapshot_json: JSON.stringify(backup.kitchen) });
+    assert.equal(readKitchen().recipes.length, 1, 'restoring twice does not duplicate recipes');
+    assert.equal(readKitchen().makes.length, 1, 'restoring twice does not duplicate cooking records');
+  } finally {
+    delete process.env.COOKHOARD_DATA_DIR;
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

@@ -2,15 +2,13 @@
   "name": "cookhoard",
   "private": true,
   "version": "0.1.0",
-  "description": "Recetas de la comunidad + makes (estilo Cults3D) + recomendador de nevera con temporada y zona. Clon de Watch Hoard para cocinar. Local-first, autoalojable.",
+  "description": "Cocina personal local para Faustus: recetas, nevera, menús y lista de compra por MCP.",
   "license": "AGPL-3.0-or-later",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/mcp",
+    "packages/core"
   ],
   "scripts": {
-    "mobile": "npm run start --workspace @cookhoard/mobile",
-    "web": "npm run web --workspace @cookhoard/mobile",
     "mcp": "npm run start --workspace @cookhoard/mcp",
     "test:core": "tsx packages/core/test/run.ts"
   },
