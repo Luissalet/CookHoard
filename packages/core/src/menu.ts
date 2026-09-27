@@ -7,6 +7,30 @@ import { seasonForMonth, dishSeasonFit } from './season';
 export interface MenuDay { label: string; recipeId: string; title: string; }
 export interface MenuPlan { days: MenuDay[]; season: string; }
 
+/** Local Monday of the week, used to keep a saved menu attached to its week. */
+export function menuWeekKey(date: Date = new Date()): string {
+  const monday = new Date(date);
+  monday.setHours(12, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+}
+
+/** Change one day's recipe without changing the rest of the menu. */
+export function replaceMenuDay(plan: MenuPlan, recipes: Recipe[], index: number): MenuPlan {
+  const current = plan.days[index];
+  if (!current || recipes.length < 2) return plan;
+  const usedElsewhere = new Set(plan.days.filter((_, i) => i !== index).map((d) => d.recipeId));
+  const start = recipes.findIndex((r) => r.id === current.recipeId);
+  for (let offset = 1; offset <= recipes.length; offset++) {
+    const replacement = recipes[(start + offset + recipes.length) % recipes.length];
+    if (replacement && replacement.id !== current.recipeId && !usedElsewhere.has(replacement.id)) {
+      return { ...plan, days: plan.days.map((d, i) => i === index
+        ? { ...d, recipeId: replacement.id, title: replacement.title } : d) };
+    }
+  }
+  return plan;
+}
+
 export interface MenuContext {
   month?: number;
   hemisphere?: Hemisphere;

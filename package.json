@@ -11,6 +11,7 @@
   "scripts": {
     "mobile": "npm run start --workspace @cookhoard/mobile",
     "web": "npm run web --workspace @cookhoard/mobile",
+    "mcp": "npm run start --workspace @cookhoard/mcp",
     "test:core": "tsx packages/core/test/run.ts"
   },
   "devDependencies": {

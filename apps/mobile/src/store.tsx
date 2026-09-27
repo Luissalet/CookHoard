@@ -7,6 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   SEED_RECIPES, mergeShopping, manualShoppingItem, resolveIngredient, INGREDIENT_BY_ID,
   type Recipe, type Make, type Hemisphere, type ShoppingItem, type ShopUnit, type PantryItem,
+  type MenuPlan,
+  menuWeekKey,
 } from '@cookhoard/core';
 import { isCloud } from './cloud/backend';
 import { CloudSource } from './cloud/source';
@@ -15,6 +17,7 @@ import { supabase } from './cloud/client';
 const KEYS = {
   recipes: '@cookhoard/userRecipes', makes: '@cookhoard/makes', pantry: '@cookhoard/pantry',
   expiry: '@cookhoard/pantryExpiry', saved: '@cookhoard/saved', shopping: '@cookhoard/shopping', ctx: '@cookhoard/ctx',
+  menu: '@cookhoard/weeklyMenu',
 };
 
 export function uid(): string {
@@ -25,6 +28,7 @@ type Ctx = {
   ready: boolean; recipes: Recipe[]; userRecipes: Recipe[]; makes: Make[];
   pantry: string[]; pantryExpiry: Record<string, string>; savedIds: string[]; shopping: ShoppingItem[];
   month: number; hemisphere: Hemisphere;
+  menuPlan: MenuPlan | null; setMenuPlan: (plan: MenuPlan | null) => void;
   recipeById: (id: string) => Recipe | undefined;
   makesFor: (id: string) => Make[];
   pantryItems: () => PantryItem[];
@@ -56,12 +60,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const pantry = useMemo(() => shopping.filter((i) => i.checked).map((i) => i.ingredientId), [shopping]);
   const [month, setMonthState] = useState<number>(new Date().getMonth() + 1);
   const [hemisphere, setHemisphereState] = useState<Hemisphere>('N');
+  const [menuPlan, setMenuPlan] = useState<MenuPlan | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
         const ctxRaw = await AsyncStorage.getItem(KEYS.ctx);
         if (ctxRaw) { const c = JSON.parse(ctxRaw); if (c.month) setMonthState(c.month); if (c.hemisphere) setHemisphereState(c.hemisphere); }
+        const menuRaw = await AsyncStorage.getItem(KEYS.menu);
+        if (menuRaw) {
+          const saved = JSON.parse(menuRaw);
+          if (saved.week === menuWeekKey() && Array.isArray(saved.plan?.days)) setMenuPlan(saved.plan);
+        }
 
         if (isCloud && supabase) {
           const { data } = await supabase.auth.getUser();
@@ -98,6 +108,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (ready) AsyncStorage.setItem(KEYS.expiry, JSON.stringify(pantryExpiry)); }, [pantryExpiry, ready]);
   useEffect(() => { if (ready) AsyncStorage.setItem(KEYS.shopping, JSON.stringify(shopping)); }, [shopping, ready]);
   useEffect(() => { if (ready) AsyncStorage.setItem(KEYS.ctx, JSON.stringify({ month, hemisphere })); }, [month, hemisphere, ready]);
+  useEffect(() => { if (ready) AsyncStorage.setItem(KEYS.menu, JSON.stringify({ week: menuWeekKey(), plan: menuPlan })); }, [menuPlan, ready]);
 
   const recipes = useMemo<Recipe[]>(() => {
     const savedSet = new Set(savedIds);
@@ -189,7 +200,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const setHemisphere = useCallback((h: Hemisphere) => setHemisphereState(h), []);
 
   const value: Ctx = {
-    ready, recipes, userRecipes, makes, pantry, pantryExpiry, savedIds, shopping, month, hemisphere,
+    ready, recipes, userRecipes, makes, pantry, pantryExpiry, savedIds, shopping, month, hemisphere, menuPlan, setMenuPlan,
     recipeById, makesFor, pantryItems, addRecipe, addMake, addSessionRecipes,
     addPantry, removePantry, clearPantry, setExpiry, toggleSaved,
     addShopping, toggleShopping, removeShopping, clearShopping,

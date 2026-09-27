@@ -3,7 +3,7 @@ import {
   recommend, scoreRecipe, seasonForMonth, dishSeasonFit,
   SEED_RECIPES, DEFAULT_STAPLES, INGREDIENT_BY_ID,
   inferTags, estimateRecipeNutrition, buildShoppingList, mergeShopping,
-  planWeek, expiringSoon, useItUp, computeBadges, parseJsonLdRecipe, mealToRecipe,
+  planWeek, replaceMenuDay, menuWeekKey, expiringSoon, useItUp, computeBadges, parseJsonLdRecipe, mealToRecipe,
   remixesOf, remixLineage, remixFamily, diffRecipes, buildDiagram, detectTimer, formatTimer,
   type Make, type Recipe,
 } from '../src/index.ts';
@@ -54,6 +54,11 @@ ok(merged.filter((i) => i.ingredientId === 'lentil').length === 1, 'mergeShoppin
 
 console.log('\n— Weekly menu —');
 const plan = planWeek(SEED_RECIPES, { month: 7 });
+ok(menuWeekKey(new Date(2026, 8, 27)) === '2026-09-21', 'domingo conserva el lunes de su semana');
+const changed = replaceMenuDay(plan, SEED_RECIPES, 0);
+ok(changed.days[0].recipeId !== plan.days[0].recipeId, 'cambiar un día elige otra receta');
+ok(changed.days.slice(1).every((d, i) => d.recipeId === plan.days[i + 1].recipeId), 'cambiar un día conserva los demás');
+ok(!changed.days.slice(1).some((d) => d.recipeId === changed.days[0].recipeId), 'cambiar un día evita duplicados');
 ok(plan.days.length === 7, `menú de 7 días (${plan.days.length})`);
 ok(new Set(plan.days.map((d) => d.recipeId)).size >= 5, 'menú con variedad (≥5 recetas distintas)');
 ok(plan.season === 'summer', 'menú de julio etiquetado como verano');
@@ -152,4 +157,3 @@ ok(formatTimer(90) === '1:30' && formatTimer(3661) === '1:01:01', 'formatTimer: 
 
 console.log(`\n${failures === 0 ? '🎉 Todos los tests pasan' : `💥 ${failures} test(s) fallan`}`);
 process.exit(failures === 0 ? 0 : 1);
-

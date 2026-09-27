@@ -1,19 +1,22 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { planWeek, buildShoppingList, DEFAULT_STAPLES, type MenuPlan } from '@cookhoard/core';
+import { planWeek, replaceMenuDay, buildShoppingList, DEFAULT_STAPLES } from '@cookhoard/core';
 import { useStore } from '../src/store';
 import { Screen, RecipeCard, Btn, SectionTitle, EmptyState } from '../src/ui';
 import { space } from '../src/theme';
 
 export default function Menu() {
   const { t } = useTranslation();
-  const { recipes, pantry, month, hemisphere, recipeById, addShopping } = useStore();
-  const [plan, setPlan] = useState<MenuPlan | null>(null);
+  const { recipes, pantry, month, hemisphere, recipeById, addShopping, menuPlan: plan, setMenuPlan } = useStore();
 
   const generate = useCallback(() => {
-    setPlan(planWeek(recipes, { month, hemisphere, pantry, staples: DEFAULT_STAPLES }));
-  }, [recipes, month, hemisphere, pantry]);
+    setMenuPlan(planWeek(recipes, { month, hemisphere, pantry, staples: DEFAULT_STAPLES }));
+  }, [recipes, month, hemisphere, pantry, setMenuPlan]);
+
+  const changeDay = useCallback((index: number) => {
+    if (plan) setMenuPlan(replaceMenuDay(plan, recipes, index));
+  }, [plan, recipes, setMenuPlan]);
 
   const dayRecipes = useMemo(
     () => (plan ? plan.days.map((d) => recipeById(d.recipeId)).filter(Boolean) : []),
@@ -42,6 +45,7 @@ export default function Menu() {
               <View key={`${d.recipeId}-${i}`}>
                 <SectionTitle>{t('menu.day', { n: i + 1 })}</SectionTitle>
                 {r ? <RecipeCard recipe={r} /> : null}
+                <Btn label={t('menu.changeDay')} tone="ghost" icon="refresh-outline" onPress={() => changeDay(i)} />
               </View>
             );
           })}

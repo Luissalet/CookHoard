@@ -1,12 +1,12 @@
 # CookHoard 🍳
 
-**Recetas de la comunidad + makes (estilo Cults3D) + un recomendador de nevera que tiene en
-cuenta la temporada y tu zona.** Un clon de [Watch Hoard](../WatchHoard) para cocinar: misma
-arquitectura (Expo / React Native + Expo Router, i18n ES/EN, local-first con salto a Supabase),
-pero el objeto central es la **receta creada por el usuario**.
+**Cocina local para Faustus:** recetas propias, recomendaciones según la nevera y la estación,
+menú semanal y lista de compra en un MCP que funciona sin servidor web ni cuenta en la nube.
+La aplicación Expo sigue disponible como interfaz opcional. Su almacenamiento todavía es
+independiente del MCP; no sincroniza las dos cocinas.
 
-> Estado: **Fase 1 implementada y ejecutable** (local-first, sin backend). El motor de
-> recomendación —la joya— está construido y **testeado**. Plan completo en
+> El motor de recomendación es TypeScript puro y está probado. El MCP local es la
+> vía recomendada para usar CookHoard desde Faustus. Plan histórico en
 > [`COOKHOARD.md`](./COOKHOARD.md).
 
 ---
@@ -25,8 +25,8 @@ pero el objeto central es la **receta creada por el usuario**.
 - **Recetario** — tus recetas, las guardadas y tus makes.
 - **Perfil** — stats + cambio de idioma (ES/EN), todo persistido en el dispositivo.
 
-Todo corre **en local** (memoria + `AsyncStorage`), sembrado con 8 recetas reales. Sin cuentas,
-sin red.
+La aplicación Expo corre en local con `AsyncStorage` y 8 recetas iniciales. La vía MCP usa
+`kitchen.json` en el ordenador y permite guardar recetas propias además de las iniciales.
 
 ## El motor de recomendación (Señal B)
 
@@ -68,6 +68,19 @@ Copia `apps/mobile/.env.example` → `apps/mobile/.env` si quieres tocar la conf
 `EXPO_PUBLIC_BACKEND=local`, no hace falta nada más). Verificación de tipos de la app:
 `npm run typecheck --workspace @cookhoard/mobile`.
 
+## Usarlo desde Faustus, sin servidor
+
+CookHoard incluye un MCP local en `apps/mcp`. Tras `npm install`, conecta el
+[`faustus-plugin.json`](./faustus-plugin.json) del proyecto en Faustus indicando la carpeta
+`COOKHOARD_DIR`. Faustus inicia el proceso MCP cuando necesita sus herramientas; no hace
+falta abrir Expo, mantener un servidor web ni configurar Supabase. Se puede ajustar
+`COOKHOARD_DATA_DIR` para elegir dónde guardar `kitchen.json`.
+
+Las herramientas permiten guardar recetas propias, buscar recetas y pasos, recomendar según la nevera y la
+temporada, guardar el menú de esta semana, cambiar un día, añadir sus ingredientes
+pendientes a la lista y marcar lo que ya hay en casa. Los cambios se guardan en disco.
+Comprueba la integración con `npm run test --workspace @cookhoard/mcp`.
+
 ## Estructura
 
 ```
@@ -86,12 +99,13 @@ CookHoard/
 └─ README.md
 ```
 
-## Fases 2–4 y nube: implementadas
+## Aplicación Expo y nube opcionales
 
-Todas las fases están construidas y funcionan **en local sin keys**; las APIs y la nube se
-**encienden solas** al poner las claves:
+La aplicación Expo conserva estas funciones. El camino de desarrollo principal es el MCP local;
+Supabase no se necesita para usar CookHoard desde Faustus. Las APIs y la nube de la app se
+encienden al poner las claves:
 
-- **Fase 2** — lista de la compra, menú semanal, código de barras (Open Food Facts), y "buscar
+- **Fase 2** — lista de la compra, menú semanal guardado durante su semana y editable por día sin regenerar todo, código de barras (Open Food Facts), y "buscar
   recetas online" (TheMealDB gratis + Spoonacular opcional).
 - **Fase 3** — nube Supabase: migraciones (`supabase/migrations/`), auth, feed de makes, reviews;
   `EXPO_PUBLIC_BACKEND=supabase` la activa. Local sigue por defecto.

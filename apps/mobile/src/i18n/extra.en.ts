@@ -41,7 +41,7 @@ export default {
     addPh: 'Add an item…', qty: 'Qty', toBuy: 'To buy', haveIt: 'Already have', allBought: 'All done — nothing left to buy.',
     fromRecipe: 'from a recipe',
   },
-  menu: { title: 'Weekly menu', generate: 'Generate menu', regen: 'Shuffle', addAll: 'Missing → shopping list', day: 'Day {{n}}' },
+  menu: { title: 'Weekly menu', generate: 'Generate menu', regen: 'Shuffle', addAll: 'Missing → shopping list', day: 'Day {{n}}', changeDay: 'Change this day' },
   import: {
     title: 'Import recipe', url: 'Recipe URL (blog)', urlPh: 'https://…',
     or: 'or paste the recipe JSON-LD', jsonPh: '{ "@type": "Recipe", … }', go: 'Import',
