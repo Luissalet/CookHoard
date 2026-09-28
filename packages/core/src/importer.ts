@@ -15,6 +15,24 @@ export interface JsonLdRecipe {
   image?: unknown;
 }
 
+/** Find a Recipe node in a JSON-LD object, including common @graph and array wrappers. */
+export function findJsonLdRecipe(value: unknown): JsonLdRecipe | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findJsonLdRecipe(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (!value || typeof value !== 'object') return null;
+  const node = value as Record<string, unknown>;
+  const types = Array.isArray(node['@type']) ? node['@type'] : [node['@type']];
+  if (types.some((type) => typeof type === 'string' && (type === 'Recipe' || type.endsWith('/Recipe')))) {
+    return node as JsonLdRecipe;
+  }
+  return findJsonLdRecipe(node['@graph']);
+}
+
 function parseInstructions(ri: unknown): string[] {
   if (!ri) return [];
   if (typeof ri === 'string') return ri.split(/\r?\n+/).map((s) => s.trim()).filter(Boolean);
@@ -44,8 +62,18 @@ function parseServings(y: JsonLdRecipe['recipeYield']): number | undefined {
 
 function stripQty(line: string): string {
   return line
-    .replace(/^[\d\s/.,½¼¾–-]+\s*(g|gr|kg|ml|l|cl|taza|tazas|cup|cups|cda|cdta|tbsp|tsp|oz|lb|dientes?|unidad(es)?)?\.?\s*/i, '')
+    .replace(/^[\d\s/.,½¼¾–-]+\s*(kg|gr|g|ml|cl|l|tazas?|cups?|cdtas?|cdas?|tbsp|tsp|oz|lb|dientes?|unidad(es)?)?\.?\s*/i, '')
     .trim();
+}
+
+function parseAmount(line: string): Pick<RecipeIngredient, 'quantity' | 'unit'> {
+  const match = line.trim().match(/^(\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾])\s*(kg|gr?|ml|cl|l|tazas?|cups?|cdas?|cdtas?|tbsp|tsp|oz|lb|dientes?|unidades?)?/i);
+  if (!match) return {};
+  const token = match[1]!;
+  const quantity = token.includes('/') ? token.split('/').map(Number).reduce((a, b) => a / b)
+    : ({ '½': 0.5, '¼': 0.25, '¾': 0.75 } as Record<string, number>)[token] ?? Number(token.replace(',', '.'));
+  return Number.isFinite(quantity) && quantity > 0
+    ? { quantity, ...(match[2] ? { unit: match[2].toLowerCase() } : {}) } : {};
 }
 
 function extractImage(img: unknown): string | undefined {
@@ -66,6 +94,7 @@ export function parseJsonLdRecipe(json: JsonLdRecipe, id: string, authorId = 'im
 
   const ingredients: RecipeIngredient[] = rawIngredients.map((line) => ({
     ingredientId: resolveIngredient(stripQty(line)),
+    ...parseAmount(line),
     note: line,
   }));
   const steps = parseInstructions(json.recipeInstructions).map((text) => ({ text, timerSec: detectTimer(text) }));

@@ -86,6 +86,8 @@ const parsed = parseJsonLdRecipe({
 }, 'import:1');
 ok(!!parsed && parsed.title === 'Tarta de manzana', 'import: título');
 ok(!!parsed && parsed.ingredients.some((i) => i.ingredientId === 'apple'), 'import: resuelve manzana → apple');
+ok(!!parsed && parsed.ingredients.find((i) => i.ingredientId === 'apple')?.quantity === 3, 'import: cantidad de manzanas');
+ok(!!parsed && parsed.ingredients.find((i) => i.note === '200 g harina')?.unit === 'g', 'import: unidad de harina');
 ok(!!parsed && parsed.steps.length === 2, 'import: 2 pasos');
 ok(!!parsed && parsed.servings === 6, 'import: 6 raciones');
 

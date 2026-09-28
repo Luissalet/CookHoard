@@ -4,10 +4,11 @@ import {
   SEED_RECIPES, INGREDIENT_BY_ID, DEFAULT_STAPLES, recommend, planWeek,
   menuWeekKey, replaceMenuDay, buildShoppingList, mergeShopping,
   manualShoppingItem, resolveIngredient, estimateRecipeNutrition,
-  expiringSoon, useItUp, computeBadges, parseJsonLdRecipe,
+  expiringSoon, useItUp, computeBadges, parseJsonLdRecipe, findJsonLdRecipe,
 } from '@cookhoard/core';
 import { readKitchen, updateKitchen, normalizeKitchen } from './store.mjs';
 import { menuIngredients } from './menu-ingredients.mjs';
+import { fetchRecipeFromUrl } from './import-url.mjs';
 
 const text = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
 const fail = (message) => { throw new Error(message); };
@@ -19,7 +20,7 @@ const recipeSummary = (recipe) => ({ id: recipe.id, title: recipe.title, descrip
   servings: recipe.servings, difficulty: recipe.difficulty, temperature: recipe.temperature,
   heaviness: recipe.heaviness, seasonAffinity: recipe.seasonAffinity,
   dietFlags: recipe.dietFlags, allergens: recipe.allergens, image: recipe.image,
-  remixOf: recipe.remixOf,
+  remixOf: recipe.remixOf, sourceUrl: recipe.sourceUrl,
   ingredients: recipe.ingredients.map((ingredient) => ({ ...ingredient, name: nameOf(ingredient.ingredientId) })) });
 const freshMenu = (state) => state.menu?.week === menuWeekKey() ? state.menu.plan : null;
 const ingredientInput = z.union([z.string().trim().min(1).max(100), z.object({
@@ -264,12 +265,23 @@ export const TOOLS = [
     schema: z.object({ json_ld: z.string().min(2).max(100000) }), run: ({ json_ld }) => {
       let parsed;
       try { parsed = JSON.parse(json_ld); } catch { fail('JSON-LD no válido.'); }
-      const raw = Array.isArray(parsed) ? parsed.find((item) => item?.['@type'] === 'Recipe') :
-        parsed?.['@graph']?.find((item) => item?.['@type'] === 'Recipe') || parsed;
+      const raw = findJsonLdRecipe(parsed) || (parsed?.name ? parsed : null);
       if (!raw || typeof raw !== 'object') fail('No se encontró una receta en el JSON-LD.');
       const recipe = parseJsonLdRecipe(raw, `local-${crypto.randomUUID()}`, 'local') || fail('No se encontró una receta en el JSON-LD.');
       const state = updateKitchen((current) => { current.recipes.push(recipe); return current; });
       return { recipe: recipeSummary(state.recipes.at(-1)), steps: state.recipes.at(-1).steps };
+    } },
+  { name: 'import_recipe_url', description: 'Open a recipe page, read its schema.org Recipe JSON-LD, and save it in the local cookbook. Repeating the URL reuses the saved recipe. Sinónimos: importa esta receta, guardar receta de enlace',
+    schema: z.object({ url: z.url().refine((value) => /^https?:\/\//i.test(value), 'Usa un enlace HTTP o HTTPS.') }),
+    run: async ({ url }) => {
+      const { recipe: raw, sourceUrl } = await fetchRecipeFromUrl(url);
+      const existing = readKitchen().recipes.find((item) => item.sourceUrl === sourceUrl);
+      if (existing) return { recipe: recipeSummary(existing), steps: existing.steps, already_imported: true };
+      const recipe = parseJsonLdRecipe(raw, `local-${crypto.randomUUID()}`, 'local') || fail('La página no contiene una receta válida.');
+      if (!recipe.ingredients.length || !recipe.steps.length) fail('La página no publica ingredientes y pasos completos para importar.');
+      recipe.sourceUrl = sourceUrl;
+      const state = updateKitchen((current) => { current.recipes.push(recipe); return current; });
+      return { recipe: recipeSummary(state.recipes.at(-1)), steps: state.recipes.at(-1).steps, already_imported: false };
     } },
   { name: 'export_kitchen', description: 'Export the complete local kitchen as JSON for a personal backup. Sinónimos: copia de seguridad, exportar cocina',
     schema: z.object({}), readOnly: true, run: () => ({ kitchen: readKitchen() }) },

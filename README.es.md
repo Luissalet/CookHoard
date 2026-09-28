@@ -21,7 +21,7 @@ Registra [`faustus-plugin.json`](./faustus-plugin.json) en Faustus y configura `
 - Elección de receta y raciones por día; cálculo agregado de ingredientes del menú o de días concretos.
 - Nevera y compra en una lista: marcado significa que ya tienes el ingrediente. Fechas de caducidad y propuestas para aprovechar lo que vence.
 - Recetario guardado, historial de platos cocinados con valoración y notas, insignias y nutrición orientativa.
-- Importación de una receta pegando su JSON-LD `schema.org/Recipe`; copia y restauración completa de la cocina como JSON.
+- Importación directa desde una página con JSON-LD `schema.org/Recipe` mediante `import_recipe_url`, o pegando el JSON-LD en `import_recipe_jsonld`. Repetir el enlace reutiliza la receta guardada. Copia y restauración completa de la cocina como JSON.
 
 El motor reutilizable está en `packages/core`; las herramientas y el almacenamiento están en `apps/mcp`. Los datos se guardan en un único `kitchen.json` local. `export_kitchen` devuelve una copia completa que puedes conservar fuera de Faustus; `import_kitchen` la restaura sin duplicar recetas ni platos cocinados.
 

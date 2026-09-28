@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -59,6 +60,7 @@ test('Faustus-compatible stdio MCP starts from an unrelated cwd', async () => {
     const catalog = await client.listTools();
     assert.ok(catalog.tools.some((tool) => tool.name === 'recommend_recipes'));
     assert.ok(catalog.tools.some((tool) => tool.name === 'set_menu_day'));
+    assert.ok(catalog.tools.some((tool) => tool.name === 'import_recipe_url'));
     assert.equal(catalog.tools.find((tool) => tool.name === 'menu_ingredients').annotations.readOnlyHint, true);
     const result = await client.callTool({ name: 'find_recipes', arguments: { query: 'gazpacho' } });
     assert.equal(result.isError, undefined);
@@ -160,6 +162,46 @@ test('local cookbook keeps structured recipes, cooking history and expiry on dis
     assert.equal(readKitchen().recipes.length, 1, 'restoring twice does not duplicate recipes');
     assert.equal(readKitchen().makes.length, 1, 'restoring twice does not duplicate cooking records');
   } finally {
+    delete process.env.COOKHOARD_DATA_DIR;
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('a recipe page imports through MCP once and persists its source', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cookhoard-url-'));
+  process.env.COOKHOARD_DATA_DIR = directory;
+  const page = `<html><script type="application/ld+json">broken</script>
+    <script data-purpose="recipe" type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': [
+      { '@type': 'WebPage', name: 'Example' },
+      { '@type': ['Thing', 'Recipe'], name: 'Sopa local', recipeYield: '2 personas',
+        recipeIngredient: ['200 g tomate', '1 cebolla'],
+        recipeInstructions: [{ '@type': 'HowToStep', text: 'Cocer 20 minutos.' }] },
+    ] })}</script></html>`;
+  const server = http.createServer((request, response) => {
+    response.setHeader('content-type', 'text/html; charset=utf-8');
+    response.end(request.url === '/recipe' ? page : '<html>sin receta</html>');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const imported = await callTool('import_recipe_url', { url: `${base}/recipe` });
+    assert.equal(imported.already_imported, false);
+    assert.equal(imported.recipe.title, 'Sopa local');
+    assert.equal(imported.recipe.servings, 2);
+    assert.equal(imported.recipe.ingredients[0].quantity, 200);
+    assert.equal(imported.recipe.ingredients[0].unit, 'g');
+    assert.equal(imported.recipe.sourceUrl, `${base}/recipe`);
+    assert.equal(imported.steps[0].timerSec, 1200);
+    assert.equal((await callTool('get_recipe', { recipe_id: imported.recipe.id })).sourceUrl, `${base}/recipe`);
+    const repeated = await callTool('import_recipe_url', { url: `${base}/recipe` });
+    assert.equal(repeated.already_imported, true);
+    assert.equal(repeated.recipe.id, imported.recipe.id);
+    const before = fs.readFileSync(dataFile(), 'utf8');
+    await assert.rejects(callTool('import_recipe_url', { url: `${base}/missing` }), /No se encontró una receta/);
+    assert.equal(fs.readFileSync(dataFile(), 'utf8'), before);
+    assert.equal(readKitchen().recipes.length, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
     delete process.env.COOKHOARD_DATA_DIR;
     fs.rmSync(directory, { recursive: true, force: true });
   }

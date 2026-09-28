@@ -21,7 +21,7 @@ Register [`faustus-plugin.json`](faustus-plugin.json) in Faustus and set `COOKHO
 - Recipe and serving selection per day, plus ingredient totals for the whole menu or selected days.
 - A combined pantry and shopping list: a checked ingredient means you already have it. Expiration dates support suggestions for using food before it expires.
 - Saved cookbook, cooking history with ratings and notes, badges and approximate nutrition.
-- Import of a pasted `schema.org/Recipe` JSON-LD recipe; full kitchen export and restore as JSON.
+- Import a recipe directly from a page containing `schema.org/Recipe` JSON-LD with `import_recipe_url`, or paste JSON-LD with `import_recipe_jsonld`. Repeating a page URL reuses its saved recipe. Full kitchen export and restore as JSON.
 
 Reusable logic lives in `packages/core`; MCP tools and persistence live in `apps/mcp`. One local `kitchen.json` stores the data. `export_kitchen` returns a complete backup, and `import_kitchen` restores it without duplicating recipes or cooked dishes.
 
