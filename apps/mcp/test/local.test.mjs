@@ -94,12 +94,15 @@ test('menu portions aggregate every required ingredient, preserve units and leav
     assert.equal(tomatoG.quantity, 300);
     assert.equal(tomatoG.pantry_present, true);
     assert.equal(tomatoG.shopping_status, 'check_stock');
+    assert.equal(tomatoG.stock_status, 'check_stock');
+    assert.equal(tomatoG.to_buy_quantity, null, 'stock without a quantity must not be subtracted');
     assert.equal(totals.required.find((item) => item.ingredient_id === 'tomato' && item.unit === 'ud').quantity, 3);
     const salt = totals.required.find((item) => item.ingredient_id === 'salt');
     assert.equal(salt.quantity, null);
     assert.equal(salt.known_quantity, 6);
     assert.equal(salt.unknown_quantity_count, 2);
     assert.equal(salt.shopping_status, 'assumed_staple');
+    assert.equal(salt.stock_status, 'unknown_required_quantity');
     assert.equal(totals.optional[0].quantity, 60);
     assert.equal(totals.optional[0].shopping_status, 'to_buy');
     assert.equal(fs.readFileSync(dataFile(), 'utf8'), bytes);
@@ -128,6 +131,47 @@ test('menu portions aggregate every required ingredient, preserve units and leav
     await callTool('set_menu_day', { day: 1, recipe_id: recipe.id, servings: 3 });
     await callTool('change_menu_day', { day: 1 });
     assert.equal(readKitchen().menu.plan.days[0].servings, undefined);
+  } finally {
+    delete process.env.COOKHOARD_DATA_DIR;
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('menu quantities allocate known pantry stock before optional needs and convert common units', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cookhoard-stock-'));
+  process.env.COOKHOARD_DATA_DIR = directory;
+  try {
+    const { recipe } = await callTool('save_recipe', { title: 'Prueba de existencias', servings: 2,
+      ingredients: [{ name: 'tomate', quantity: 100, unit: 'g' },
+        { name: 'tomate', quantity: 100, unit: 'g', optional: true },
+        { name: 'tomate', quantity: 1, unit: 'ud', optional: true },
+        { name: 'leche', quantity: 250, unit: 'ml' },
+        { name: 'huevo', quantity: 3, unit: 'ud' }], steps: ['Mezclar.'] });
+    await callTool('plan_week');
+    await callTool('set_menu_day', { day: 1, recipe_id: recipe.id });
+    await callTool('add_kitchen_item', { name: 'tomate', checked: true, qty: 0.15, unit: 'kg' });
+    await callTool('add_kitchen_item', { name: 'leche', checked: true, qty: 0.2, unit: 'L' });
+    await callTool('add_kitchen_item', { name: 'huevo', checked: true, qty: 5, unit: 'ud' });
+    const before = fs.readFileSync(dataFile(), 'utf8');
+    const result = await callTool('menu_ingredients', { days: [1] });
+    const tomato = result.required.find((item) => item.ingredient_id === 'tomato');
+    const optionalTomato = result.optional.find((item) => item.ingredient_id === 'tomato');
+    const tomatoUnits = result.optional.find((item) => item.ingredient_id === 'tomato' && item.unit === 'ud');
+    const milk = result.required.find((item) => item.ingredient_id === 'leche');
+    const egg = result.required.find((item) => item.ingredient_id === 'egg');
+    assert.deepEqual([tomato.covered_quantity, tomato.to_buy_quantity, tomato.stock_status], [100, 0, 'covered']);
+    assert.deepEqual([optionalTomato.covered_quantity, optionalTomato.to_buy_quantity, optionalTomato.stock_status], [50, 50, 'to_buy']);
+    assert.equal(tomatoUnits.stock_status, 'check_stock');
+    assert.equal(tomatoUnits.to_buy_quantity, null, 'kg must not be converted into individual tomatoes');
+    assert.deepEqual([milk.covered_quantity, milk.to_buy_quantity, milk.stock_status], [200, 50, 'to_buy']);
+    assert.deepEqual([egg.covered_quantity, egg.to_buy_quantity, egg.stock_status], [3, 0, 'covered']);
+    assert.equal(fs.readFileSync(dataFile(), 'utf8'), before);
+    await callTool('set_kitchen_item', { ingredient_id: 'tomato', qty: 0.1 });
+    const corrected = await callTool('menu_ingredients', { days: [1] });
+    assert.equal(corrected.required.find((item) => item.ingredient_id === 'tomato').to_buy_quantity, 0);
+    assert.equal(corrected.optional.find((item) => item.ingredient_id === 'tomato').to_buy_quantity, 100);
+    await callTool('set_kitchen_item', { ingredient_id: 'tomato', checked: false });
+    assert.equal((await callTool('menu_ingredients', { days: [1] })).required.find((item) => item.ingredient_id === 'tomato').to_buy_quantity, 100);
   } finally {
     delete process.env.COOKHOARD_DATA_DIR;
     fs.rmSync(directory, { recursive: true, force: true });

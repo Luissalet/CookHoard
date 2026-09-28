@@ -3,7 +3,7 @@
   "id": "cookhoard",
   "name": "CookHoard",
   "purpose": "Local cooking assistant for recipes, fridge-aware recommendations, a weekly menu and a unified shopping list. No web server or cloud account is required.",
-  "capabilities": ["recipes", "cooking steps", "fridge", "shopping list", "seasonal recommendations", "weekly menu", "daily servings", "scaled menu ingredient totals"],
+  "capabilities": ["recipes", "cooking steps", "fridge", "shopping list", "seasonal recommendations", "weekly menu", "daily servings", "scaled menu ingredient totals", "pantry stock deficits"],
   "placeholders": ["COOKHOARD_DIR"],
   "mcp": {
     "transport": "stdio",

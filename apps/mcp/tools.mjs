@@ -7,7 +7,7 @@ import {
   expiringSoon, useItUp, computeBadges, parseJsonLdRecipe, findJsonLdRecipe,
 } from '@cookhoard/core';
 import { readKitchen, updateKitchen, normalizeKitchen } from './store.mjs';
-import { menuIngredients } from './menu-ingredients.mjs';
+import { menuIngredients, addStockCoverage } from './menu-ingredients.mjs';
 import { fetchRecipeFromUrl } from './import-url.mjs';
 
 const text = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
@@ -136,7 +136,7 @@ export const TOOLS = [
       });
       return { week: state.menu.week, menu: state.menu.plan };
     } },
-  { name: 'menu_ingredients', description: 'Calculate menu quantities and show what to buy, check in the pantry, or treat as an assumed staple. Optional days selects Monday=1 through Sunday=7. Scales servings, keeps distinct units and unknown amounts explicit. Read-only; does not change shopping or subtract pantry amounts. Sinónimos: cantidades menú, sumar ingredientes, raciones, calcular compra',
+  { name: 'menu_ingredients', description: 'Calculate menu quantities and exact shopping deficits from known pantry stock. Optional days selects Monday=1 through Sunday=7. Scales servings; converts g/kg and ml/L, and marks unknown or incompatible stock for checking. Read-only. Sinónimos: cantidades menú, cuánto falta comprar, raciones, calcular compra',
     schema: z.object({ days: z.array(z.number().int().min(1).max(7)).min(1).max(7).optional() }), readOnly: true,
     run: ({ days }) => {
       const state = readKitchen();
@@ -150,6 +150,7 @@ export const TOOLS = [
           : DEFAULT_STAPLES.has(group.ingredient_id) && !listed ? 'assumed_staple' : 'to_buy';
       }
       result.notes.push('shopping_status: to_buy falta (también si un básico se marca agotado); check_stock exige comprobar la cantidad; assumed_staple se supone disponible sin inventario confirmado.');
+      addStockCoverage(result, state.shopping, DEFAULT_STAPLES);
       return { week: state.menu.week, ...result };
     } },
   { name: 'add_menu_missing', description: 'Add missing ingredients from this week’s menu to the shopping list, without duplicates. Sinónimos: comprar lo que falta, ingredientes del menú',
@@ -175,12 +176,16 @@ export const TOOLS = [
       });
       return { item: state.shopping.find((item) => item.ingredientId === id), shopping: state.shopping };
     } },
-  { name: 'set_kitchen_item', description: 'Update an existing ingredient as in the fridge or still to buy. For a new item use add_kitchen_item. Sinónimos: ya tengo, marcar comprado, se ha agotado, desmarcar',
-    schema: z.object({ ingredient_id: z.string().min(1), checked: z.boolean() }), run: ({ ingredient_id, checked }) => {
+  { name: 'set_kitchen_item', description: 'Update an existing ingredient: availability, known stock quantity or unit. For a new item use add_kitchen_item. Sinónimos: ya tengo, marcar comprado, corregir cantidad, existencias, se ha agotado',
+    schema: z.object({ ingredient_id: z.string().min(1), checked: z.boolean().optional(),
+      qty: z.number().positive().optional(), unit: z.enum(['ud', 'L', 'kg']).optional() })
+      .refine((value) => value.checked !== undefined || value.qty !== undefined || value.unit !== undefined,
+        'Indica al menos un cambio.'), run: ({ ingredient_id, checked, qty, unit }) => {
       const state = updateKitchen((current) => {
         if (!current.shopping.some((item) => item.ingredientId === ingredient_id)) fail('Ingrediente no encontrado.');
-        current.shopping = current.shopping.map((item) => item.ingredientId === ingredient_id ? { ...item, checked } : item);
-        if (!checked) delete current.pantryExpiry[ingredient_id];
+        current.shopping = current.shopping.map((item) => item.ingredientId === ingredient_id ? { ...item,
+          checked: checked ?? item.checked, qty: qty ?? item.qty, unit: unit ?? item.unit } : item);
+        if (checked === false) delete current.pantryExpiry[ingredient_id];
         return current;
       });
       return { item: state.shopping.find((item) => item.ingredientId === ingredient_id) };
