@@ -7,6 +7,7 @@ import {
   expiringSoon, useItUp, computeBadges, parseJsonLdRecipe,
 } from '@cookhoard/core';
 import { readKitchen, updateKitchen, normalizeKitchen } from './store.mjs';
+import { menuIngredients } from './menu-ingredients.mjs';
 
 const text = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
 const fail = (message) => { throw new Error(message); };
@@ -116,6 +117,33 @@ export const TOOLS = [
         return current;
       });
       return { week: state.menu.week, menu: state.menu.plan };
+    } },
+  { name: 'set_menu_day', description: 'Choose a recipe and target servings for one day of the saved current weekly menu. Day 1 is Monday. Omit servings to use the original recipe yield; an explicit target needs known recipe servings. Sinónimos: elegir plato, raciones, personas, corregir menú',
+    schema: z.object({ day: z.number().int().min(1).max(7), recipe_id: z.string().min(1), servings: z.number().int().positive().optional() }),
+    run: ({ day, recipe_id, servings }) => {
+      const state = updateKitchen((current) => {
+        const plan = freshMenu(current) || fail('No hay un menú guardado para esta semana. Usa plan_week primero.');
+        const recipe = recipes(current).find((item) => item.id === recipe_id) || fail('Receta no encontrada.');
+        if (!plan.days[day - 1]) fail('Ese día no existe en el menú guardado.');
+        if (servings !== undefined && !(Number.isFinite(recipe.servings) && recipe.servings > 0)) {
+          fail('La receta no tiene raciones base conocidas. Añade sus raciones con update_recipe antes de escalar.');
+        }
+        plan.days[day - 1] = { ...plan.days[day - 1], recipeId: recipe.id, title: recipe.title };
+        delete plan.days[day - 1].servings;
+        if (servings !== undefined) plan.days[day - 1].servings = servings;
+        return current;
+      });
+      return { week: state.menu.week, menu: state.menu.plan };
+    } },
+  { name: 'menu_ingredients', description: 'Calculate ingredient quantities for the current weekly menu, scaled to each day’s servings. Optional days selects Monday=1 through Sunday=7. Aggregates exact matching units; optional ingredients are separate and unknown quantities remain explicit. Read-only; does not change shopping or subtract pantry amounts. Sinónimos: cantidades menú, sumar ingredientes, raciones, calcular compra',
+    schema: z.object({ days: z.array(z.number().int().min(1).max(7)).min(1).max(7).optional() }), readOnly: true,
+    run: ({ days }) => {
+      const state = readKitchen();
+      const plan = freshMenu(state) || fail('No hay un menú guardado para esta semana.');
+      if (days?.some((day) => !plan.days[day - 1])) fail('Ese día no existe en el menú guardado.');
+      const result = menuIngredients(plan, recipes(state), pantry(state), days);
+      for (const group of [...result.required, ...result.optional]) group.name = nameOf(group.ingredient_id);
+      return { week: state.menu.week, ...result };
     } },
   { name: 'add_menu_missing', description: 'Add missing ingredients from this week’s menu to the shopping list, without duplicates. Sinónimos: comprar lo que falta, ingredientes del menú',
     schema: z.object({}), run: () => {

@@ -4,7 +4,7 @@ import type { Recipe, Hemisphere } from './types';
 import { recommend } from './recommend';
 import { seasonForMonth, dishSeasonFit } from './season';
 
-export interface MenuDay { label: string; recipeId: string; title: string; }
+export interface MenuDay { label: string; recipeId: string; title: string; servings?: number; }
 export interface MenuPlan { days: MenuDay[]; season: string; }
 
 /** Local Monday of the week, used to keep a saved menu attached to its week. */
@@ -25,7 +25,7 @@ export function replaceMenuDay(plan: MenuPlan, recipes: Recipe[], index: number)
     const replacement = recipes[(start + offset + recipes.length) % recipes.length];
     if (replacement && replacement.id !== current.recipeId && !usedElsewhere.has(replacement.id)) {
       return { ...plan, days: plan.days.map((d, i) => i === index
-        ? { ...d, recipeId: replacement.id, title: replacement.title } : d) };
+        ? { label: d.label, recipeId: replacement.id, title: replacement.title } : d) };
     }
   }
   return plan;

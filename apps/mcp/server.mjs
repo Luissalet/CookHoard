@@ -7,7 +7,7 @@ for (const tool of TOOLS) {
   server.registerTool(tool.name, {
     description: tool.description,
     inputSchema: tool.schema,
-    annotations: { readOnlyHint: !!tool.readOnly, destructiveHint: false, idempotentHint: ['add_menu_missing', 'set_kitchen_item', 'remove_kitchen_item'].includes(tool.name), openWorldHint: false },
+    annotations: { readOnlyHint: !!tool.readOnly, destructiveHint: false, idempotentHint: ['add_menu_missing', 'set_kitchen_item', 'remove_kitchen_item', 'set_menu_day'].includes(tool.name), openWorldHint: false },
   }, async (args) => {
     try { return mcpResult(await callTool(tool.name, args)); }
     catch (error) { return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: error.message }) }] }; }

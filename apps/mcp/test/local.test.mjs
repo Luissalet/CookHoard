@@ -58,11 +58,67 @@ test('Faustus-compatible stdio MCP starts from an unrelated cwd', async () => {
     await client.connect(transport);
     const catalog = await client.listTools();
     assert.ok(catalog.tools.some((tool) => tool.name === 'recommend_recipes'));
+    assert.ok(catalog.tools.some((tool) => tool.name === 'set_menu_day'));
+    assert.equal(catalog.tools.find((tool) => tool.name === 'menu_ingredients').annotations.readOnlyHint, true);
     const result = await client.callTool({ name: 'find_recipes', arguments: { query: 'gazpacho' } });
     assert.equal(result.isError, undefined);
     assert.equal(JSON.parse(result.content[0].text).recipes[0].id, 'gazpacho');
   } finally {
     await client.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('menu portions aggregate every required ingredient, preserve units and leave the kitchen unchanged on reads and errors', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cookhoard-portions-'));
+  process.env.COOKHOARD_DATA_DIR = directory;
+  try {
+    const { recipe } = await callTool('save_recipe', { title: 'Prueba de raciones', servings: 2,
+      ingredients: [{ name: 'tomate', quantity: 100, unit: 'g' },
+        { name: 'tomate', quantity: 1, unit: 'ud' },
+        { name: 'sal', quantity: 2, unit: 'g', isCore: false },
+        { name: 'sal', unit: 'g', isCore: false },
+        { name: 'pepino', quantity: 20, unit: 'g', optional: true }], steps: ['Mezclar.'] });
+    const unknown = await callTool('save_recipe', { title: 'Sin rendimiento', ingredients: ['tomate'], steps: ['Cortar.'] });
+    await callTool('plan_week');
+    const before = readKitchen();
+    await callTool('set_menu_day', { day: 1, recipe_id: recipe.id, servings: 4 });
+    await callTool('set_menu_day', { day: 2, recipe_id: recipe.id, servings: 2 });
+    assert.deepEqual(readKitchen().menu.plan.days.slice(2), before.menu.plan.days.slice(2));
+    await callTool('add_kitchen_item', { name: 'tomate', checked: true });
+    const bytes = fs.readFileSync(dataFile(), 'utf8');
+    const totals = await callTool('menu_ingredients', { days: [1, 2, 2] });
+    const tomatoG = totals.required.find((item) => item.ingredient_id === 'tomato' && item.unit === 'g');
+    assert.equal(tomatoG.quantity, 300);
+    assert.equal(tomatoG.pantry_present, true);
+    assert.equal(totals.required.find((item) => item.ingredient_id === 'tomato' && item.unit === 'ud').quantity, 3);
+    const salt = totals.required.find((item) => item.ingredient_id === 'salt');
+    assert.equal(salt.quantity, null);
+    assert.equal(salt.known_quantity, 6);
+    assert.equal(salt.unknown_quantity_count, 2);
+    assert.equal(totals.optional[0].quantity, 60);
+    assert.equal(fs.readFileSync(dataFile(), 'utf8'), bytes);
+    for (const args of [{ day: 0, recipe_id: recipe.id }, { day: 8, recipe_id: recipe.id },
+      { day: 1, recipe_id: 'missing' }, { day: 1, recipe_id: unknown.recipe.id, servings: 3 }]) {
+      await assert.rejects(callTool('set_menu_day', args));
+      assert.equal(fs.readFileSync(dataFile(), 'utf8'), bytes);
+    }
+    await callTool('set_menu_day', { day: 1, recipe_id: recipe.id, servings: 3 });
+    const corrected = fs.readFileSync(dataFile(), 'utf8');
+    await callTool('set_menu_day', { day: 1, recipe_id: recipe.id, servings: 3 });
+    assert.equal(fs.readFileSync(dataFile(), 'utf8'), corrected);
+    assert.equal((await callTool('menu_ingredients', { days: [1, 2] })).required[0].quantity, 250);
+    await callTool('set_menu_day', { day: 1, recipe_id: recipe.id });
+    assert.equal((await callTool('menu_ingredients', { days: [1] })).required[0].quantity, 100);
+    await callTool('set_menu_day', { day: 1, recipe_id: unknown.recipe.id });
+    const unscaled = await callTool('menu_ingredients', { days: [1] });
+    assert.equal(unscaled.days[0].servings, null);
+    assert.equal(unscaled.required[0].quantity, null);
+    await callTool('set_menu_day', { day: 1, recipe_id: recipe.id, servings: 3 });
+    await callTool('change_menu_day', { day: 1 });
+    assert.equal(readKitchen().menu.plan.days[0].servings, undefined);
+  } finally {
+    delete process.env.COOKHOARD_DATA_DIR;
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
