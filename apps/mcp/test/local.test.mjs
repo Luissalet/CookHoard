@@ -93,12 +93,15 @@ test('menu portions aggregate every required ingredient, preserve units and leav
     const tomatoG = totals.required.find((item) => item.ingredient_id === 'tomato' && item.unit === 'g');
     assert.equal(tomatoG.quantity, 300);
     assert.equal(tomatoG.pantry_present, true);
+    assert.equal(tomatoG.shopping_status, 'check_stock');
     assert.equal(totals.required.find((item) => item.ingredient_id === 'tomato' && item.unit === 'ud').quantity, 3);
     const salt = totals.required.find((item) => item.ingredient_id === 'salt');
     assert.equal(salt.quantity, null);
     assert.equal(salt.known_quantity, 6);
     assert.equal(salt.unknown_quantity_count, 2);
+    assert.equal(salt.shopping_status, 'assumed_staple');
     assert.equal(totals.optional[0].quantity, 60);
+    assert.equal(totals.optional[0].shopping_status, 'to_buy');
     assert.equal(fs.readFileSync(dataFile(), 'utf8'), bytes);
     for (const args of [{ day: 0, recipe_id: recipe.id }, { day: 8, recipe_id: recipe.id },
       { day: 1, recipe_id: 'missing' }, { day: 1, recipe_id: unknown.recipe.id, servings: 3 }]) {
@@ -112,6 +115,12 @@ test('menu portions aggregate every required ingredient, preserve units and leav
     assert.equal((await callTool('menu_ingredients', { days: [1, 2] })).required[0].quantity, 250);
     await callTool('set_menu_day', { day: 1, recipe_id: recipe.id });
     assert.equal((await callTool('menu_ingredients', { days: [1] })).required[0].quantity, 100);
+    await callTool('set_kitchen_item', { ingredient_id: 'tomato', checked: false });
+    const shopping = await callTool('menu_ingredients', { days: [1] });
+    assert.equal(shopping.required.find((item) => item.ingredient_id === 'tomato' && item.unit === 'g').shopping_status, 'to_buy');
+    assert.equal(shopping.required.find((item) => item.ingredient_id === 'tomato' && item.unit === 'g').quantity, 100);
+    await callTool('add_kitchen_item', { name: 'sal', checked: false });
+    assert.equal((await callTool('menu_ingredients', { days: [1] })).required.find((item) => item.ingredient_id === 'salt').shopping_status, 'to_buy', 'explicitly depleted staples are not assumed available');
     await callTool('set_menu_day', { day: 1, recipe_id: unknown.recipe.id });
     const unscaled = await callTool('menu_ingredients', { days: [1] });
     assert.equal(unscaled.days[0].servings, null);

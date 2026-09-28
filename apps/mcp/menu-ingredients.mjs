@@ -33,8 +33,6 @@ export function menuIngredients(menu, recipes, pantryIds, selectedDays) {
     }
   }
   return { days, required: [...required.values()], optional: [...optional.values()],
-    notes: ['Las cantidades son necesidades totales del menú, no una lista de compra.',
-      'Los opcionales se calculan aparte; los ingredientes no principales sí se incluyen en required.',
-      'No se convierten unidades. Un total null indica cantidades desconocidas; known_quantity es solo el subtotal conocido.',
-      'pantry_present solo indica presencia en la nevera: no garantiza cantidad suficiente ni se descuenta del total.'] };
+    notes: ['Totales del menú sin descontar despensa; los opcionales se calculan aparte y los ingredientes no principales se incluyen.',
+      'No se convierten unidades. quantity null indica cantidades desconocidas; known_quantity es solo el subtotal conocido.'] };
 }

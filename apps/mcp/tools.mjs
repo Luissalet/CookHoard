@@ -136,14 +136,20 @@ export const TOOLS = [
       });
       return { week: state.menu.week, menu: state.menu.plan };
     } },
-  { name: 'menu_ingredients', description: 'Calculate ingredient quantities for the current weekly menu, scaled to each day’s servings. Optional days selects Monday=1 through Sunday=7. Aggregates exact matching units; optional ingredients are separate and unknown quantities remain explicit. Read-only; does not change shopping or subtract pantry amounts. Sinónimos: cantidades menú, sumar ingredientes, raciones, calcular compra',
+  { name: 'menu_ingredients', description: 'Calculate menu quantities and show what to buy, check in the pantry, or treat as an assumed staple. Optional days selects Monday=1 through Sunday=7. Scales servings, keeps distinct units and unknown amounts explicit. Read-only; does not change shopping or subtract pantry amounts. Sinónimos: cantidades menú, sumar ingredientes, raciones, calcular compra',
     schema: z.object({ days: z.array(z.number().int().min(1).max(7)).min(1).max(7).optional() }), readOnly: true,
     run: ({ days }) => {
       const state = readKitchen();
       const plan = freshMenu(state) || fail('No hay un menú guardado para esta semana.');
       if (days?.some((day) => !plan.days[day - 1])) fail('Ese día no existe en el menú guardado.');
       const result = menuIngredients(plan, recipes(state), pantry(state), days);
-      for (const group of [...result.required, ...result.optional]) group.name = nameOf(group.ingredient_id);
+      for (const group of [...result.required, ...result.optional]) {
+        group.name = nameOf(group.ingredient_id);
+        const listed = state.shopping.some((item) => item.ingredientId === group.ingredient_id);
+        group.shopping_status = group.pantry_present ? 'check_stock'
+          : DEFAULT_STAPLES.has(group.ingredient_id) && !listed ? 'assumed_staple' : 'to_buy';
+      }
+      result.notes.push('shopping_status: to_buy falta (también si un básico se marca agotado); check_stock exige comprobar la cantidad; assumed_staple se supone disponible sin inventario confirmado.');
       return { week: state.menu.week, ...result };
     } },
   { name: 'add_menu_missing', description: 'Add missing ingredients from this week’s menu to the shopping list, without duplicates. Sinónimos: comprar lo que falta, ingredientes del menú',

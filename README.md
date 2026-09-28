@@ -31,7 +31,7 @@ You can ask Faustus: “Plan this week and put my tortilla on Monday for four an
 
 `set_menu_day` modifies one day of the current menu (`day: 1` is Monday; `7` is Sunday). `recipe_id` and `servings` are optional. Repeating a selection does not add days or duplicate quantities. Omitting `servings` restores the recipe's base yield. A recipe needs a known base yield to scale; add it through `update_recipe` if missing.
 
-`menu_ingredients` calculates the whole week or a subset such as `days: [1, 2]`. It sums repeated recipes and scales by selected servings divided by base servings. It includes non-main and staple ingredients; optional ingredients are listed separately. Only identical units are grouped: grams and kilograms remain separate. `quantity: null` marks an unknown total; `known_quantity` is the known subtotal. A checked pantry item does not establish that enough is available, so the tool does not subtract it. This query leaves the menu, recipes and shopping list unchanged.
+`menu_ingredients` calculates the whole week or a subset such as `days: [1, 2]`. It sums repeated recipes and scales by selected servings divided by base servings. It includes non-main and staple ingredients; optional ingredients are listed separately. Each ingredient has `shopping_status`: `to_buy` when absent or explicitly marked depleted, `check_stock` when marked in the pantry, or `assumed_staple` for an unlisted default staple. Only identical units are grouped: grams and kilograms remain separate. `quantity: null` marks an unknown total; `known_quantity` is the known subtotal. A checked pantry item does not establish that enough is available, so the tool does not subtract it. This query leaves the menu, recipes and shopping list unchanged.
 
 ## Verify
 
