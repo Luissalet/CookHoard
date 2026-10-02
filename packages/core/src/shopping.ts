@@ -6,8 +6,8 @@ import type { Recipe } from './types';
 import { coreIngredientIds } from './recommend';
 
 // Quantity units offered in the manual add UI.
-export type ShopUnit = 'ud' | 'L' | 'kg';
-export const SHOP_UNITS: ShopUnit[] = ['ud', 'L', 'kg'];
+export type ShopUnit = 'ud' | 'L' | 'kg' | 'g' | 'ml' | 'ración';
+export const SHOP_UNITS: ShopUnit[] = ['ud', 'L', 'kg', 'g', 'ml', 'ración'];
 
 export interface ShoppingItem {
   ingredientId: string;   // canonical dictionary id, or a free-text slug for custom items

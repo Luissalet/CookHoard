@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "mcp": "npm run start --workspace @cookhoard/mcp",
-    "test:core": "tsx packages/core/test/run.ts"
+    "test:core": "tsx packages/core/test/run.ts && node --import tsx --test packages/core/test/*.test.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.0",

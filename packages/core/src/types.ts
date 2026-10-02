@@ -35,6 +35,23 @@ export interface RecipeIngredient {
 export interface RecipeStep {
   text: string;
   timerSec?: number;
+  /** Oven or pan temperature named in the step, in °C. */
+  temperatureC?: number;
+}
+
+/** Where an imported recipe came from. Absent on recipes typed in by hand. */
+export interface RecipeSource {
+  kind: 'manual' | 'url' | 'video' | 'text' | 'web';
+  url?: string;
+  /** Platform name of a video link (instagram, tiktok, youtube, facebook…). */
+  platform?: string;
+  /** Account or channel that published it: shown as credit. */
+  uploader?: string;
+  /** Local path (relative to the data folder, served under /media) of the saved thumbnail. */
+  thumbnail?: string;
+  importedAt?: string;
+  /** What the recipe was read from: caption, subtitles, transcript, frames, web, text. */
+  evidence?: string[];
 }
 
 export interface Recipe {
@@ -47,6 +64,7 @@ export interface Recipe {
   description?: string;
   image?: string;
   sourceUrl?: string;
+  source?: RecipeSource;
   servings?: number;
   prepMin?: number;
   cookMin?: number;
@@ -76,6 +94,8 @@ export interface Make {
   notes?: string;
   images?: string[];
   servingsMade?: number;
+  /** Portions eaten at the table; the rest becomes leftovers. */
+  servingsEaten?: number;
   timeTakenMin?: number;
   wouldRepeat?: boolean;
   createdAt: string;
