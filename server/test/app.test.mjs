@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../app.mjs';
 import { TOOLS, toolCatalog } from '../tools/index.mjs';
+import { FAMILY_VERSION } from '../hoard-link.js';
 import { scratch, fakeHub, fixedClock } from './helpers.mjs';
 
 async function serve(t, options = {}) {
@@ -34,7 +35,7 @@ test('health says who this is and carries the family block', async (t) => {
   assert.equal(health.service, 'cookhoard');
   assert.match(health.version, /^\d+\.\d+\.\d+$/);
   assert.equal(health.hoard_link.app, 'cookhoard');
-  assert.equal(health.hoard_link.family, '0.6.0');
+  assert.equal(health.hoard_link.family, FAMILY_VERSION);
   assert.equal(health.tools, TOOLS.length);
   assert.ok('ytdlp' in health && 'ffmpeg' in health && health.scheduler);
 });
