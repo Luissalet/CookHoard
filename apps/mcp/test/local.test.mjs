@@ -223,6 +223,7 @@ test('local cookbook keeps structured recipes, cooking history and expiry on dis
 test('a recipe page imports through MCP once and persists its source', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cookhoard-url-'));
   process.env.COOKHOARD_DATA_DIR = directory;
+  process.env.COOKHOARD_ALLOW_PRIVATE_URLS = '1';       // the page is served from 127.0.0.1
   const page = `<html><script type="application/ld+json">broken</script>
     <script data-purpose="recipe" type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': [
       { '@type': 'WebPage', name: 'Example' },
@@ -255,6 +256,7 @@ test('a recipe page imports through MCP once and persists its source', async () 
     assert.equal(readKitchen().recipes.length, 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
+    delete process.env.COOKHOARD_ALLOW_PRIVATE_URLS;
     delete process.env.COOKHOARD_DATA_DIR;
     fs.rmSync(directory, { recursive: true, force: true });
   }

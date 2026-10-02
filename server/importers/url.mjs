@@ -1,5 +1,7 @@
 // Recipe from a web page: schema.org Recipe JSON-LD when the page has it; otherwise the page text goes through the draft pipeline.
 import crypto from 'node:crypto';
+import { jsonldBlocks, jsonldNodes, loadJsonld } from '../hoard-commons/web.js';
+import { getPage, pageProblem } from '../net-policy.mjs';
 import { findJsonLdRecipe, parseJsonLdRecipe, htmlToText, parseRecipeText, looksLikeVideoUrl } from '@cookhoard/core';
 import { readKitchen, updateKitchen } from '../store.mjs';
 import { nowIso } from '../clock.mjs';
@@ -8,34 +10,22 @@ import { createDraft } from './drafts.mjs';
 import { importVideo } from './video.mjs';
 import { recipeSummaryByUrl } from './shared.mjs';
 
+/** The first schema.org Recipe of a page, from its JSON-LD blocks (trailing commas, CDATA wrappers and HTML-escaped quotes are tolerated). */
 export function recipeFromHtml(html) {
-  const scripts = html.matchAll(/<script\b(?=[^>]*\btype\s*=\s*["']application\/ld\+json["'])[^>]*>([\s\S]*?)<\/script\s*>/gi);
-  for (const [, body] of scripts) {
-    try {
-      const recipe = findJsonLdRecipe(JSON.parse(body.trim()));
-      if (recipe) return recipe;
-    } catch {
-      // Some sites include non-JSON scripts; continue to the next JSON-LD block.
-    }
+  const [blocks] = jsonldBlocks(html);
+  for (const node of jsonldNodes(blocks, ['Recipe'])) {
+    const recipe = findJsonLdRecipe(node);
+    if (recipe) return recipe;
   }
   return null;
 }
 
+/** The page at `url` as { body, type, finalUrl }; a page that cannot be read throws a sentence for the person. */
 async function fetchPage(url) {
-  let response;
-  try {
-    response = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { Accept: 'text/html,application/ld+json;q=0.9' } });
-  } catch {
-    throw new Error('No se pudo abrir la página de la receta.');
-  }
-  if (!response.ok) throw new Error(`La página respondió con ${response.status}.`);
-  const type = response.headers.get('content-type') || '';
-  if (!/text\/html|application\/ld\+json|application\/json/i.test(type)) throw new Error('El enlace no devuelve una página o JSON-LD de receta.');
-  const size = Number(response.headers.get('content-length') || 0);
-  if (size > 2_000_000) throw new Error('La página es demasiado grande para importar.');
-  const body = await response.text();
-  if (body.length > 2_000_000) throw new Error('La página es demasiado grande para importar.');
-  return { body, type, finalUrl: response.url || url };
+  const res = await getPage(url, { accept: 'html', timeoutMs: 10000, maxBytes: 2_000_000 });
+  if (!res.ok) throw new Error(pageProblem(res));
+  if (res.truncated || res.text_truncated) throw new Error('La página es demasiado grande para importar.');
+  return { body: String(res.text ?? ''), type: String(res.content_type || res.headers?.['content-type'] || ''), finalUrl: res.final_url || res.url || url };
 }
 
 const withSource = (recipe, url) => ({ ...recipe, sourceUrl: url, source: { kind: 'url', url, importedAt: nowIso() } });
@@ -50,7 +40,8 @@ export async function importRecipeUrl(url, { use_model = true } = {}) {
   if (existing) return { recipe: existing, steps: existing.steps, already_imported: true };
   let raw = null;
   if (/application\/(ld\+json|json)/i.test(type)) {
-    try { raw = findJsonLdRecipe(JSON.parse(body)); } catch { /* explained below */ }
+    const [value] = loadJsonld(body);
+    raw = findJsonLdRecipe(value);
   } else raw = recipeFromHtml(body);
   const recipe = raw ? parseJsonLdRecipe(raw, `local-${crypto.randomUUID()}`, 'local') : null;
   if (recipe && recipe.ingredients.length && recipe.steps.length) {
