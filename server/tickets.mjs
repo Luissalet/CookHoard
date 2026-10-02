@@ -6,7 +6,8 @@ import {
 } from '@cookhoard/core';
 import { readKitchen, updateKitchen } from './store.mjs';
 import { nowIso, today } from './clock.mjs';
-import { ask, callApp } from './hub.mjs';
+import { ask, callApp, whyFailed } from './hub.mjs';
+import { docsExtract } from './hoard-commons/fam-services.js';
 import { fail, lexOf, nameOf } from './tools/common.mjs';
 
 const SUGGEST_SCHEMA = { type: 'object', properties: { lines: { type: 'array', items: { type: 'object',
@@ -136,19 +137,31 @@ export function mapTicketLine({ ticket_id, line_id, ingredient, ignore, ignore_a
 
 const pagesText = (document) => (document?.pages ?? []).map((page) => page.text ?? '').join('\n').trim();
 
-/** File a receipt (PDF or photo) in Kafka, read its text back, and import it as a ticket. */
-export async function importTicketFile(path, options = {}) {
+/** The text of a receipt file: Kafka's stateless reader (the text layer, OCR for a scan), or, for a Kafka that has not got it yet, the old way: file it, read it back. */
+async function readReceiptFile(path) {
+  const read = await docsExtract(path, { ocr: 'auto', lang: 'es' });
+  if (read.ok) return { text: String(read.text ?? '').trim() };
+  if (read.kind !== 'tool_missing') return { failure: { status: 'kafka_unavailable', why: whyFailed('kafka', 'doc_extract', read) } };
   const filed = await callApp('kafka', 'doc_add_file', { path, kind: 'receipt' }, { timeoutMs: 180000 });
-  if (!filed.ok) return { status: 'kafka_unavailable', why: `${filed.why} CookHoard lee los tickets en fichero a través de Kafka (OCR). Mientras tanto puedes pegar el texto con ticket_import_text.` };
+  if (!filed.ok) return { failure: { status: 'kafka_unavailable', why: filed.why } };
   const doc = filed.result?.documents?.[0];
-  if (!doc?.id) return { status: 'kafka_no_document', why: 'Kafka no ha creado ningún documento con ese fichero.', detail: filed.result };
-  const read = await callApp('kafka', 'doc_get', { doc: doc.id, include_text: true }, { timeoutMs: 60000 });
-  if (!read.ok) return { status: 'kafka_unavailable', why: read.why };
-  const text = pagesText(read.result);
-  if (text.length < 20) return { status: 'no_text', doc_id: doc.id, why: 'Kafka ha archivado el fichero pero no ha podido leer texto (¿foto borrosa o sin OCR disponible?). Pega el texto con ticket_import_text.' };
-  const fileName = read.result?.document?.file_name ?? String(path).split(/[\\/]/).pop();
-  const imported = await importTicketText(text, { ...options, source: 'file', docId: doc.id, fileName });
-  return { status: 'imported', doc_id: doc.id, ...imported };
+  if (!doc?.id) return { failure: { status: 'kafka_no_document', why: 'Kafka no ha creado ningún documento con ese fichero.', detail: filed.result } };
+  const back = await callApp('kafka', 'doc_get', { doc: doc.id, include_text: true }, { timeoutMs: 60000 });
+  if (!back.ok) return { failure: { status: 'kafka_unavailable', why: back.why } };
+  return { text: pagesText(back.result), docId: doc.id, fileName: back.result?.document?.file_name };
+}
+
+/** Read a receipt (PDF or photo) with Kafka and import it as a ticket. */
+export async function importTicketFile(path, options = {}) {
+  const got = await readReceiptFile(path);
+  if (got.failure) {
+    const { status, why } = got.failure;
+    return { ...got.failure, ...(status === 'kafka_unavailable' ? { why: `${why} CookHoard lee los tickets en fichero a través de Kafka (OCR). Mientras tanto puedes pegar el texto con ticket_import_text.` } : {}) };
+  }
+  if (got.text.length < 20) return { status: 'no_text', ...(got.docId ? { doc_id: got.docId } : {}), why: 'Kafka no ha podido leer texto en el fichero (¿foto borrosa o sin OCR disponible?). Pega el texto con ticket_import_text.' };
+  const fileName = got.fileName ?? String(path).split(/[\\/]/).pop();
+  const imported = await importTicketText(got.text, { ...options, source: 'file', ...(got.docId ? { docId: got.docId } : {}), fileName });
+  return { status: 'imported', ...(got.docId ? { doc_id: got.docId } : {}), ...imported };
 }
 
 /** Import supermarket receipts that Kafka already read from the mail account (ones not imported yet). */

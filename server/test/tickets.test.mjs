@@ -153,3 +153,37 @@ test('pack sizes in names set the pantry quantity and the price per kg, and the 
   const prices = await callTool('price_book', { query: 'patata' });
   assert.deepEqual([prices.items[0].price_unit, prices.items[0].last.unit_price, prices.items[0].last.store], ['kg', 1.16, 'Supermercado Ejemplo']);
 });
+
+test('a ticket file is read by Kafka\'s stateless extractor (OCR for a scan) and nothing is filed in Kafka', async (t) => {
+  let asked;
+  const hub = setup(t, { calls: { 'kafka.doc_extract': (args) => { asked = args; return { kind: 'pdf', title: '', text: TICKET_ROWS, units: [], needs_ocr: false, notes: [], pages_ocr: 0 }; } } });
+  const result = await callTool('ticket_import_file', { path: '/tmp/cookhoard-fixtures/ticket.pdf' });
+  assert.deepEqual(asked, { path: '/tmp/cookhoard-fixtures/ticket.pdf', ocr: 'auto', max_pages: 400, lang: 'es', wait_s: 150 });
+  assert.equal(result.status, 'imported');
+  assert.equal(result.ticket.source, 'file');
+  assert.equal(result.ticket.file, 'ticket.pdf');
+  assert.equal(result.ticket.doc_id, null, 'the extractor files nothing, so there is no Kafka document');
+  assert.equal(result.ticket.applied, 6);
+  assert.deepEqual(hub.log.calls.map((c) => c.tool), ['doc_extract']);
+});
+
+test('a scan that Kafka is still reading is followed to the end; an empty or failed read is explained', async (t) => {
+  const answers = [];
+  const hub = setup(t, { calls: {
+    'kafka.doc_extract': () => ({ job_id: 'o1', status: 'running', pages_done: 0, pages_total: 1 }),
+    'kafka.ocr_status': (args) => { answers.push(args); return { job_id: 'o1', status: 'done', kind: 'image', text: TICKET_ROWS, units: [], needs_ocr: false, notes: ['OCR'], pages_ocr: 1 }; } } });
+  const followed = await callTool('ticket_import_file', { path: '/tmp/scan.jpg' });
+  assert.equal(followed.status, 'imported');
+  assert.equal(answers[0].job_id, 'o1');
+  assert.equal(followed.ticket.applied, 6);
+  fakeHub({ calls: { 'kafka.doc_extract': () => ({ kind: 'image', text: '', units: [], needs_ocr: true, notes: ['OCR no disponible'], pages_ocr: 0 }) } });
+  const blank = await callTool('ticket_import_file', { path: '/tmp/blurry.jpg' });
+  assert.equal(blank.status, 'no_text');
+  assert.match(blank.why, /ticket_import_text/);
+  fakeHub({ calls: { 'kafka.doc_extract': () => ({ __error: 'unsupported file type', status: 400 }) } });
+  const bad = await callTool('ticket_import_file', { path: '/tmp/x.bin' });
+  assert.equal(bad.status, 'kafka_unavailable');
+  assert.match(bad.why, /kafka no ha podido responder: unsupported file type/);
+  assert.equal(readKitchen().tickets.length, 1);
+  assert.ok(hub.log.calls.length >= 2);
+});
