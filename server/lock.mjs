@@ -1,9 +1,7 @@
 // Cross-process lock for kitchen.json: the app and an in-process MCP bridge may both write it, and a write must never lose the other's.
 // A lock file created exclusively (wx) holds {pid, at}; one that is old or whose process is gone is stale and is taken over.
 import fs from 'node:fs';
-
-const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
-export const sleepSync = (ms) => Atomics.wait(sleepBuffer, 0, 0, ms);
+import { sleepSync } from './hoard-commons/server.js';
 
 const alive = (pid) => {
   if (!Number.isInteger(pid) || pid <= 0) return false;

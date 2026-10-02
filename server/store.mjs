@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { normalizeKitchen, emptyKitchen } from '@cookhoard/core';
 import { withFileLock } from './lock.mjs';
+import { writeJsonAtomic } from './hoard-commons/server.js';
 
 export { normalizeKitchen };
 
@@ -22,15 +23,7 @@ export function readKitchen(file = dataFile()) {
 }
 
 export function writeKitchen(state, file = dataFile()) {
-  const directory = path.dirname(file);
-  fs.mkdirSync(directory, { recursive: true });
-  const temporary = `${file}.${process.pid}.${Date.now()}.tmp`;
-  try {
-    fs.writeFileSync(temporary, JSON.stringify(state, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
-    fs.renameSync(temporary, file);
-  } finally {
-    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
-  }
+  writeJsonAtomic(file, state);
 }
 
 function keepVersionOne(file) {

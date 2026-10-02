@@ -1,21 +1,21 @@
 // Daily routine: at 09:00 local time (or at start-up when that moment passed today without a run) look for food about to expire
 // and tell the family bus. State lives in <data>/scheduler.json, apart from the kitchen file. Time and timers are injectable.
-import fs from 'node:fs';
 import path from 'node:path';
 import { pantryView } from '@cookhoard/core';
 import { dataDir, readKitchen } from './store.mjs';
 import { now, today } from './clock.mjs';
 import { emit } from './hub.mjs';
+import { readJson, writeJsonAtomic } from './hoard-commons/server.js';
 
 export const DAILY_HOUR = 9;
 export const EXPIRING_DAYS = 2;
 const stateFile = () => path.join(dataDir(), 'scheduler.json');
 
 export function readSchedulerState() {
-  try { return JSON.parse(fs.readFileSync(stateFile(), 'utf8')); } catch { return {}; }
+  return readJson(stateFile(), null) ?? {};
 }
 function writeSchedulerState(value) {
-  try { fs.mkdirSync(path.dirname(stateFile()), { recursive: true }); fs.writeFileSync(stateFile(), JSON.stringify(value, null, 2) + '\n'); } catch { /* the routine still ran */ }
+  try { writeJsonAtomic(stateFile(), value); } catch { /* the routine still ran */ }
 }
 
 /** One run of the daily routine. Emits cookhoard.pantry.expiring when something expires within two days. */
