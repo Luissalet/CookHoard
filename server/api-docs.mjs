@@ -40,9 +40,9 @@ CookHoard has ${tools.length} tools (${reads} read-only). The same catalogue is 
 
 | Method and path | What it does |
 | --- | --- |
-| \`GET /api/health\` | \`{ service: "cookhoard", version, ytdlp, ffmpeg, scheduler, tools, hoard_link }\` |
-| \`GET /api/agent/tools\` | \`{ instructions, tools: [{ name, description, annotations, inputSchema }] }\` |
-| \`POST /api/agent/call\` | Body \`{ name, arguments }\`, header \`Authorization: Bearer <token>\` (the token is in \`mcp-token\` inside the data folder). Returns the tool result as JSON; errors are \`{ error }\` with 400, 401, 404 or 500. |
+| \`GET /api/health\` | \`{ service: "cookhoard", version, ytdlp, ffmpeg, links_media, scheduler, tools, hoard_link }\` (\`links_media\`: whether the Links media service is running) |
+| \`GET /api/agent/tools\` | \`{ instructions, tools: [{ name, description, annotations, inputSchema }], app }\` |
+| \`POST /api/agent/call\` | Body \`{ name, arguments }\`, header \`Authorization: Bearer <token>\` (the token is in \`mcp-token\` inside the data folder). Returns the tool result as JSON (over 100 KB the largest list is cut and a \`truncated\` block says what was left out); errors are \`{ error, code? }\` with 400, 401, 404, 409 or 500. |
 | \`POST /api/tools/:name\` | Same tools for the web interface: body is the arguments, no token (local-only guard). |
 | \`GET /media/:file\` | Thumbnails saved from imported videos (data folder, \`media/\`). |
 | \`GET /manifest.webmanifest\`, \`GET /sw.js\` | Installable web app. |
