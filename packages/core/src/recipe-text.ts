@@ -17,7 +17,7 @@ export interface ParsedIngredient {
   group?: string;
   line: number;
 }
-export interface ParsedStep { text: string; timerSec?: number; temperatureC?: number; line: number }
+export interface ParsedStep { text: string; timerSec?: number; temperatureC?: number; line: number; /** Words the step was read from, when they differ from `text`. */ evidence?: string }
 export interface ParsedRecipeText {
   title: string | null;
   servings: number | null;

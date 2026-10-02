@@ -95,3 +95,20 @@ export const RECIPE_NUMBERED_NO_HEADERS = `Crema de calabacín
 2. Añade el calabacín y la patata en trozos.
 3. Cubre con el caldo y cuece 25 minutos.
 4. Tritura y sirve caliente.`;
+
+// Auto-generated style subtitles of an invented tortilla video: speech without punctuation, cut where the caption line ends.
+export const TORTILLA_CUES = [
+  'vamos a preparar tortilla de patata los', 'ingredientes que necesitaremos son 3', 'patatas grandes una cebolla 4 ó 5 huevos', 'aceite de oliva virgen extra y sal',
+  'comenzamos con las patatas ya peladas a', 'cortarlas en rodajas finas', 'hacemos lo mismo con la cebolla', 'y en una sartén grande echaremos',
+  'abundante aceite de oliva virgen y', 'cuando esté caliente añadiremos las', 'patatas', 'y la cebolla', 'tenemos que cocer la patata en el',
+  'aceite por lo que lo bajaremos a fuego', 'medio bajo', 'añadiremos sal', 'echamos los huevos en un bol grande y', 'una pizquita de sal en cada huevo',
+  'y lo batimos', 'cuando lleve unos cinco minutos le', 'daremos la primera vuelta', 'otros 4 ó 5 minutos si nos gusta poco', 'cuajada',
+];
+/** A WebVTT file for `cues`, each lasting `length` seconds; `pauses` maps a cue index to the silence (seconds) before it. */
+export function vttOf(cues: string[], pauses: Record<number, number> = {}, length = 2.4): string {
+  const stamp = (x: number): string => `00:${String(Math.floor(x / 60)).padStart(2, '0')}:${(x % 60).toFixed(3).padStart(6, '0')}`;
+  let t = 0;
+  let out = 'WEBVTT\nKind: captions\nLanguage: es\n\n';
+  cues.forEach((cue, i) => { t += pauses[i] ?? 0; out += `${stamp(t)} --> ${stamp(t + length)}\n${cue}\n\n`; t += length; });
+  return out;
+}

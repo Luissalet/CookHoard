@@ -1,9 +1,10 @@
 // Recipe from a video or reel link: yt-dlp for caption, subtitles, audio and thumbnail; Funes for the spoken text;
 // key frames + the vision model for text on screen. Every step that cannot run says why in the draft's status_notes.
-import { platformOf, hasUsableIngredientList, htmlToText } from '@cookhoard/core';
+import { platformOf, hasUsableIngredientList, htmlToText, readSpeech } from '@cookhoard/core';
 import { readKitchen } from '../store.mjs';
 import { callApp, ask, modelStatus } from '../hub.mjs';
 import { createDraft, newDraftId } from './drafts.mjs';
+import { lexOf } from '../tools/common.mjs';
 import { detectTools, fetchInfo, fetchSubtitles, fetchAudio, fetchFrames, saveThumbnail, explainYtdlp, tempDir, cleanup } from '../media.mjs';
 import { getSettings, recipeSummaryByUrl } from './shared.mjs';
 
@@ -111,7 +112,10 @@ export async function importVideo({ url, caption, transcript_text, use_model = t
         if (subs.text) { sources.subtitles = subs.text; notes.subtitles = `ok (${subs.file})`; } else notes.subtitles = 'sin subtítulos';
       }
       const wantTranscript = (transcript ?? settings.media.transcript) !== false && !sources.transcript;
-      const enough = hasUsableIngredientList(sources.caption ?? '') || hasUsableIngredientList(sources.subtitles ?? '');
+      // Speech is prose: it is never run through the list reader, only through the speech reader.
+      const lex = lexOf(readKitchen());
+      const spokenCount = (text) => (text ? readSpeech(text, lex).ingredients.length : 0);
+      const enough = hasUsableIngredientList(sources.caption ?? '') || spokenCount(sources.subtitles) >= 3;
       if (wantTranscript && info && (!enough && !sources.subtitles)) {
         const audio = await fetchAudio(tools.ytdlp, tools.ffmpeg, url, settings, work);
         if (!audio.ok) notes.transcript = `no se pudo bajar el audio: ${explainYtdlp(audio.stderr, platform).why}`;
@@ -122,7 +126,7 @@ export async function importVideo({ url, caption, transcript_text, use_model = t
         }
       } else if (!wantTranscript) notes.transcript = 'desactivado';
       else notes.transcript = sources.subtitles || enough ? 'no hizo falta' : 'sin información';
-      const anyList = Object.values(sources).some((text) => hasUsableIngredientList(text));
+      const anyList = ['caption', 'text', 'frames'].some((key) => hasUsableIngredientList(sources[key] ?? '')) || spokenCount(sources.subtitles) >= 3 || spokenCount(sources.transcript) >= 3;
       const wantFrames = (keyframes ?? settings.media.keyframes) !== false && info && !anyList;
       if (wantFrames) {
         if (!tools.ffmpeg) notes.frames = 'sin ffmpeg: no se miran fotogramas';

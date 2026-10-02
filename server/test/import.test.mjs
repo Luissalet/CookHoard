@@ -8,7 +8,7 @@ import { callTool } from '../tools/index.mjs';
 import { readKitchen } from '../store.mjs';
 import { scratch, fakeHub, fixedClock, FAKE_YTDLP } from './helpers.mjs';
 import { resetDetection } from '../media.mjs';
-import { RECIPE_BULLETS, RECIPE_CAPTION, RECIPE_NUMBERED_NO_HEADERS } from '../../packages/core/test/fixtures.ts';
+import { RECIPE_BULLETS, RECIPE_CAPTION, RECIPE_NUMBERED_NO_HEADERS, TORTILLA_CUES, vttOf } from '../../packages/core/test/fixtures.ts';
 
 const INFO = (extra = {}) => JSON.stringify({ id: 'abc123', title: 'Tortitas rápidas', description: RECIPE_CAPTION, uploader: 'cocina_ejemplo', duration: 42,
   webpage_url: 'https://www.instagram.com/reel/abc123/', extractor_key: 'Instagram', subtitles: {}, automatic_captions: {}, ...extra });
@@ -101,6 +101,27 @@ test('without a written list the subtitles are used, and the audio goes to Funes
   assert.equal(eggs.quantity, 2);
   assert.equal(eggs.evidence.source, 'subtitles');
   assert.ok(!fs.readFileSync(files.log, 'utf8').includes('bestaudio'), 'the audio was not downloaded');
+});
+
+test('subtitles are read as speech: the video title wins, cues never become ingredients and unknown words never reach the dictionary', async (t) => {
+  const title = 'Tortilla de patatas - Receta de cocina española';
+  setup(t, { info: INFO({ title, description: 'Suscríbete y dale a me gusta', subtitles: { es: [{}] } }), subs: vttOf(TORTILLA_CUES, { 5: 1.6, 12: 1.4 }) });
+  await useYtdlp();
+  const { draft } = await callTool('import_recipe_video', { url: 'https://www.instagram.com/reel/abc123/' });
+  assert.equal(draft.title, title);
+  assert.ok(draft.ingredients.length >= 4 && draft.ingredients.length <= 8, `a handful of ingredients, not one per cue (${draft.ingredients.length})`);
+  const by = (re) => draft.ingredients.find((i) => re.test(i.name));
+  assert.equal(by(/patata/i).quantity, 3);
+  assert.equal(by(/cebolla/i).quantity, 1);
+  const eggs = by(/huevo/i);
+  assert.equal(eggs.quantity, 4);
+  assert.match(eggs.note, /entre 4 y 5/, 'the range is kept');
+  assert.equal(eggs.evidence.source, 'subtitles');
+  assert.ok(draft.steps.some((st) => st.timerSec === 300), 'a spoken "unos cinco minutos" becomes a timer');
+  assert.ok(draft.confidence.score <= 0.6);
+  assert.ok(draft.confidence.notes.some((n) => /lo que se dice en el vídeo: revisa cantidades/i.test(n)));
+  assert.equal(draft.status_notes.transcript, 'no hizo falta');
+  assert.ok(draft.ingredients.every((i) => i.ingredientId), 'nothing new is proposed for the dictionary from speech');
 });
 
 test('the spoken audio is transcribed by Funes and structured by the local model with verified evidence', async (t) => {

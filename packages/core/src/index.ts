@@ -30,6 +30,7 @@ export * from './pantry';
 export * from './recipe-text';
 export * from './ticket';
 export * from './video';
+export * from './speech';
 export * from './draft';
 export * from './diet';
 export * from './prices';

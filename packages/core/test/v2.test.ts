@@ -376,7 +376,7 @@ test('what to cook: filters, expiring first, recent dishes avoided and leftovers
 test('subtitles: rolling auto-captions are collapsed and spoken amounts are read', () => {
   const vtt = `WEBVTT\nKind: captions\n\n00:00:00.000 --> 00:00:03.000 align:start\nhoy hacemos <c>unas tortitas</c>\n\n00:00:03.000 --> 00:00:06.000\nhoy hacemos unas tortitas\necho 200 gramos de harina\n\n00:00:06.000 --> 00:00:09.000\necho 200 gramos de harina\ndos huevos y una cucharada de azúcar\n\n00:00:09.000 --> 00:00:12.000\nmezclamos todo y cocinamos 2 minutos por cada lado\n`;
   const text = subtitleText(vtt);
-  assert.equal(text.split('\n').length, 4);
+  assert.equal(text, 'hoy hacemos unas tortitas echo 200 gramos de harina dos huevos y una cucharada de azúcar mezclamos todo y cocinamos 2 minutos por cada lado', 'rolling repeats are dropped and the speech runs on');
   assert.deepEqual(spokenIngredients(text).map((i) => [i.quantity, i.unit, i.name]), [[200, 'g', 'harina'], [2, null, 'huevos'], [1, 'cda', 'azúcar']]);
   assert.equal(spokenSteps(text).find((s) => s.timerSec)?.timerSec, 120);
   assert.equal(subtitleText(JSON.stringify({ events: [{ segs: [{ utf8: 'hola ' }, { utf8: 'mundo' }] }] })), 'hola mundo');

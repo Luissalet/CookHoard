@@ -495,7 +495,7 @@ Phrases: borradores, recetas por revisar, importaciones pendientes
 
 One recipe draft with the evidence of every line and what is missing. Revisar un borrador.
 
-Each ingredient and step says which text it was read from (caption, subtitles, transcript, screen, text) and whether the evidence was verified.
+Speech (subtitles, transcript) is read as prose and never as a list; drafts built from it carry the note "Leído de lo que se dice en el vídeo: revisa cantidades, ingredientes y pasos antes de guardar" and a lower confidence. Each ingredient and step says which text it was read from (caption, subtitles, transcript, screen, text) and whether the evidence was verified.
 
 *read-only*
 

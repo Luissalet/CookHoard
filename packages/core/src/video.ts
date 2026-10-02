@@ -1,9 +1,5 @@
 // Reading recipes out of videos: subtitle files → text, spoken text → ingredients and steps, platform names.
 declare const URL: { new (url: string): { hostname: string; pathname: string } };
-import { canonicalUnit, unitSpellings } from './units';
-import { fold, parseNumber } from './text';
-import { detectTimer } from './timers';
-import type { ParsedIngredient, ParsedStep } from './recipe-text';
 
 export function platformOf(url: string): string {
   const host = (() => { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } })();
@@ -33,96 +29,73 @@ export function looksLikeVideoUrl(url: string): boolean {
 
 const decode = (text: string): string => text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
 
-/** Plain text of a subtitle file (WebVTT, SRT or json3), with the repeats of rolling auto-captions removed. */
-export function subtitleText(content: string): string {
+/** A line of speech and when it was said (seconds; null when the file has no timing). */
+export interface Cue { text: string; start: number | null; end: number | null }
+
+/** Longest silence inside a sentence; a longer one means the speaker stopped. */
+export const CUE_GAP_SECONDS = 1.2;
+
+const clock = (raw: string): number | null => {
+  const m = raw.trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})$/);
+  return m ? Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3]) + Number(m[4]!.padEnd(3, '0')) / 1000 : null;
+};
+
+/** The lines of a subtitle file (WebVTT, SRT or json3) with their timing, with the repeats of rolling auto-captions removed. */
+export function subtitleCues(content: string): Cue[] {
   const trimmed = content.trim();
+  const raw: Cue[] = [];
   if (trimmed.startsWith('{')) {
     try {
-      const data = JSON.parse(trimmed) as { events?: Array<{ segs?: Array<{ utf8?: string }> }> };
-      const parts = (data.events ?? []).map((e) => (e.segs ?? []).map((s) => s.utf8 ?? '').join('')).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
-      return dedupe(parts).join('\n');
-    } catch { return ''; }
-  }
-  const lines: string[] = [];
-  for (const block of content.replace(/\r/g, '').split(/\n{2,}/)) {
-    for (const raw of block.split('\n')) {
-      const line = raw.trim();
-      if (!line || /^WEBVTT/.test(line) || /^(NOTE|STYLE|Kind:|Language:)/.test(line) || /^\d+$/.test(line) || /-->/.test(line)) continue;
-      const clean = decode(line.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
-      if (clean) lines.push(clean);
+      const data = JSON.parse(trimmed) as { events?: Array<{ tStartMs?: number; dDurationMs?: number; segs?: Array<{ utf8?: string }> }> };
+      for (const e of data.events ?? []) {
+        const text = (e.segs ?? []).map((x) => x.utf8 ?? '').join('').replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        const start = typeof e.tStartMs === 'number' ? e.tStartMs / 1000 : null;
+        raw.push({ text, start, end: start !== null && typeof e.dDurationMs === 'number' ? start + e.dDurationMs / 1000 : start });
+      }
+    } catch { return []; }
+  } else {
+    for (const block of content.replace(/\r/g, '').split(/\n{2,}/)) {
+      let start: number | null = null; let end: number | null = null;
+      for (const rawLine of block.split('\n')) {
+        const line = rawLine.trim();
+        if (!line || /^WEBVTT/.test(line) || /^(NOTE|STYLE|Kind:|Language:)/.test(line) || /^\d+$/.test(line)) continue;
+        if (/-->/.test(line)) { const [a, b] = line.split('-->'); start = clock(a ?? ''); end = clock((b ?? '').trim().split(/\s+/)[0] ?? ''); continue; }
+        const clean = decode(line.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
+        if (clean) raw.push({ text: clean, start, end });
+      }
     }
   }
-  return dedupe(lines).join('\n');
+  return dedupe(raw);
+}
+
+/**
+ * Plain text of a subtitle file as continuous speech. Lines that follow each other are joined with a space; a line break is
+ * kept only where the speaker stopped (a silence longer than CUE_GAP_SECONDS, or the line ends a sentence).
+ */
+export function subtitleText(content: string): string {
+  const cues = subtitleCues(content);
+  let out = '';
+  cues.forEach((cue, i) => {
+    if (i > 0) {
+      const prev = cues[i - 1]!;
+      const gap = prev.end !== null && cue.start !== null ? cue.start - prev.end : 0;
+      out += gap > CUE_GAP_SECONDS || /[.!?…]$/.test(prev.text) ? '\n' : ' ';
+    }
+    out += cue.text;
+  });
+  return out;
 }
 
 /** Drop repeated lines: auto-captions show every line twice (rolling), and cues often repeat the previous one. */
-function dedupe(lines: string[]): string[] {
-  const out: string[] = [];
+function dedupe(lines: Cue[]): Cue[] {
+  const out: Cue[] = [];
   for (const line of lines) {
-    if (out.slice(-3).includes(line)) continue;
+    const same = out.slice(-3).find((x) => x.text === line.text);
+    if (same) { if (line.end !== null && (same.end === null || line.end > same.end)) same.end = line.end; continue; }
     const prev = out[out.length - 1];
-    if (prev !== undefined && line.startsWith(prev + ' ')) { out[out.length - 1] = line; continue; }
-    out.push(line);
+    if (prev !== undefined && line.text.startsWith(prev.text + ' ')) { prev.text = line.text; if (line.end !== null) prev.end = line.end; continue; }
+    out.push({ ...line });
   }
   return out;
-}
-
-const UNIT_RE = unitSpellings().map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-const NUM_WORDS = 'un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|medio|media|un cuarto|doce|one|two|three|four|five|six|half';
-const SPOKEN_ING = new RegExp(String.raw`\b(\d+(?:[.,]\d+)?(?:\s*(?:y\s*)?(?:\d+\/\d+|medio|media))?|${NUM_WORDS})\s+(?:(${UNIT_RE})\b\.?\s+(?:de\s+|del\s+|of\s+)?)?([a-záéíóúñü]+(?:\s+(?:de|del)\s+[a-záéíóúñü]+)?(?:\s+(?!(?:y|e|o|con|en|a|al|un|una|uno|dos|tres|cuatro|cinco|seis|medio|media|luego|para|que|se|por|como|hasta)\b)[a-záéíóúñü]+)?)`, 'gi');
-const FILLER = new Set(['veces', 'vez', 'minutos', 'minuto', 'segundos', 'segundo', 'horas', 'hora', 'grados', 'personas', 'raciones', 'cosas', 'cosa', 'euros', 'años', 'dias', 'dia', 'poco', 'pocos', 'más', 'mas', 'menos', 'rato', 'momento', 'lado', 'lados', 'partes', 'parte', 'paso', 'pasos', 'trozos', 'trozo', 'minutes', 'minute', 'seconds', 'hours', 'times', 'degrees', 'people', 'servings']);
-const COOK_VERBS = /\b(echamos|echa|a[nñ]adimos|a[nñ]ade|mezclamos|mezcla|batimos|bate|cortamos|corta|picamos|pica|pelamos|pela|cocemos|cuece|cocinamos|cocina|horneamos|hornea|freimos|fríe|fr[ií]e|sofreimos|sofríe|salteamos|saltea|hervimos|hierve|ponemos|pon|dejamos|deja|removemos|remueve|trituramos|tritura|amasamos|amasa|extendemos|extiende|rellenamos|rellena|servimos|sirve|calentamos|calienta|agregamos|agrega|incorporamos|incorpora|tapamos|tapa|escurrimos|escurre|vertemos|vierte|mix|add|stir|bake|cook|chop|slice|pour|whisk|simmer|boil|fry|serve|preheat|season)\b/i;
-
-const NAME_STOP = new Set(['y', 'e', 'o', 'con', 'en', 'a', 'al', 'que', 'se', 'para', 'hasta', 'por', 'como', 'un', 'una', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'medio', 'media', 'luego', 'despues', 'ahora', 'and', 'then', 'with']);
-function cutName(raw: string): string {
-  const words = raw.trim().split(/\s+/);
-  const out: string[] = [];
-  for (const [i, word] of words.entries()) {
-    const f = fold(word);
-    if (i > 0 && (NAME_STOP.has(f) || /^\d/.test(f))) break;
-    out.push(word);
-  }
-  while (out.length && ['de', 'del', 'la', 'el', 'los', 'las'].includes(fold(out[out.length - 1]!))) out.pop();
-  return out.join(' ').trim();
-}
-
-/** Ingredients named in spoken or free narrative text ("200 gramos de harina", "dos huevos"). Evidence is the sentence they came from. */
-export function spokenIngredients(text: string): ParsedIngredient[] {
-  const out: ParsedIngredient[] = [];
-  const seen = new Set<string>();
-  const sentences = text.split(/(?<=[.!?\n])\s+|\n/).map((s) => s.trim()).filter(Boolean);
-  sentences.forEach((sentence, line) => {
-    for (const m of sentence.matchAll(SPOKEN_ING)) {
-      const qty = parseNumber(m[1]!.toLowerCase().replace(/^doce$/, '12').replace(/^siete$/, '7').replace(/^ocho$/, '8').replace(/^nueve$/, '9').replace(/^diez$/, '10')
-        .replace(/^six$/, '6').replace(/^two$/, '2').replace(/^three$/, '3').replace(/^four$/, '4').replace(/^five$/, '5').replace(/^one$/, '1').replace(/^half$/, '0.5').replace(/^seis$/, '6'));
-      let unit = m[2] ? canonicalUnit(m[2]) : null;
-      let name = cutName(m[3]!);
-      if (!name) continue;
-      const first = fold(name).split(' ')[0]!;
-      if (FILLER.has(first) || canonicalUnit(first) && !unit && first !== 'diente' && first !== 'lata') {
-        if (canonicalUnit(first) && !unit) { unit = canonicalUnit(first); name = name.split(' ').slice(1).join(' ').replace(/^(?:de|del)\s+/, ''); if (!name) continue; }
-        else continue;
-      }
-      if (qty === null || qty <= 0) continue;
-      if (/^\d+$/.test(m[1]!) && Number(m[1]) >= 50 && !unit) continue; // "180 grados" style leftovers
-      const key = fold(name);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ raw: sentence, name, quantity: qty, unit, optional: false, line });
-    }
-  });
-  return out;
-}
-
-/** Sentences of a narration that describe an action: the steps of a spoken recipe. */
-export function spokenSteps(text: string, limit = 24): ParsedStep[] {
-  const sentences = text.split(/(?<=[.!?])\s+|\n/).map((s) => s.trim()).filter((s) => s.length > 12);
-  const steps: ParsedStep[] = [];
-  sentences.forEach((sentence, line) => {
-    if (steps.length >= limit) return;
-    if (!COOK_VERBS.test(sentence)) return;
-    const timer = detectTimer(sentence);
-    steps.push({ text: sentence.replace(/\s+/g, ' '), ...(timer ? { timerSec: timer } : {}), line });
-  });
-  return steps;
 }

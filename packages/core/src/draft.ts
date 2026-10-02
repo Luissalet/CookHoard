@@ -4,7 +4,7 @@ import type { Draft, DraftIngredient, DraftStep } from './kitchen';
 import type { Recipe } from './types';
 import { parseRecipeText, type ParsedIngredient, type ParsedRecipeText } from './recipe-text';
 import { resolveName, resolveOrCreate, type Lexicon, type UserIngredient } from './ingredients';
-import { spokenIngredients, spokenSteps } from './video';
+import { readSpeech, type SpeechReading } from './speech';
 import { inferTags } from './tagging';
 import { detectTimer } from './timers';
 import { fold } from './text';
@@ -14,6 +14,9 @@ export type SourceName = 'caption' | 'subtitles' | 'transcript' | 'frames' | 'we
 export type Sources = Partial<Record<SourceName, string>>;
 
 const PRIORITY: SourceName[] = ['text', 'web', 'caption', 'subtitles', 'transcript', 'frames'];
+/** Sources that are somebody talking: prose, never read as a list. */
+export const SPEECH_SOURCES: SourceName[] = ['subtitles', 'transcript'];
+const isSpeech = (name: string | undefined): boolean => name === 'subtitles' || name === 'transcript';
 const CAP = 20_000;
 
 export interface BuildInput {
@@ -41,7 +44,7 @@ export function hasUsableIngredientList(text: string): boolean {
 function toDraftIngredient(i: ParsedIngredient, source: SourceName, lex: Lexicon): DraftIngredient {
   const found = resolveName(i.name, lex);
   return { raw: i.raw, name: i.name, ingredientId: found.id, quantity: i.quantity, unit: i.unit, optional: i.optional,
-    ...(i.note ? { note: i.note } : {}), evidence: { source, line: i.raw, verified: true } };
+    ...(i.note || i.quantityMax ? { note: i.quantityMax && i.quantity ? `entre ${i.quantity} y ${i.quantityMax}${i.note ? `; ${i.note}` : ''}` : i.note } : {}), evidence: { source, line: i.raw, verified: true } };
 }
 
 export function buildDraft(input: BuildInput): Draft {
@@ -49,10 +52,12 @@ export function buildDraft(input: BuildInput): Draft {
   const sources: Sources = {};
   for (const [key, value] of Object.entries(input.sources)) if (value && value.trim()) sources[key as SourceName] = value.slice(0, CAP);
   const parsed = new Map<SourceName, ParsedRecipeText>();
+  const speech = new Map<SourceName, SpeechReading>();
   for (const name of PRIORITY) {
     const text = sources[name];
     if (!text) continue;
-    parsed.set(name, parseRecipeText(text));
+    if (isSpeech(name)) speech.set(name, readSpeech(text, lex));
+    else parsed.set(name, parseRecipeText(text));
   }
   // Primary: the first source that holds an ingredient list on its own; spoken narration is read separately.
   let primary: SourceName | null = null;
@@ -70,7 +75,11 @@ export function buildDraft(input: BuildInput): Draft {
   const index = new Map<string, DraftIngredient>();
   const push = (i: DraftIngredient): void => { ingredients.push(i); index.set(keyOf(i.name), i); };
 
+  const uploader = fold(input.media?.uploader ?? '');
   let title = input.title?.trim() || null;
+  // A title that is only the channel name says nothing about the recipe.
+  if (title && uploader && fold(title) === uploader) title = null;
+  const metadataTitle = input.kind === 'video' ? title : null;
   let servings: number | null = null;
   let prepMin: number | null = null;
   let cookMin: number | null = null;
@@ -80,7 +89,7 @@ export function buildDraft(input: BuildInput): Draft {
     used.add(primary);
     for (const i of p.ingredients) push(toDraftIngredient(i, primary, lex));
     for (const s of p.steps) steps.push({ text: s.text, ...(s.timerSec ? { timerSec: s.timerSec } : {}), evidence: { source: primary, line: s.text } });
-    title = p.title || title;
+    title = metadataTitle || p.title || title;
     servings = p.servings; prepMin = p.prepMin; cookMin = p.cookMin ?? (p.totalMin && !p.prepMin ? p.totalMin : null);
     description = p.description ?? description;
   }
@@ -89,8 +98,8 @@ export function buildDraft(input: BuildInput): Draft {
     const text = sources[name];
     if (!text || name === primary) continue;
     const p = parsed.get(name);
-    const spoken = (name === 'subtitles' || name === 'transcript' || name === 'frames') ? spokenIngredients(text) : [];
-    const candidates = [...(p?.ingredients ?? []), ...spoken];
+    const said = speech.get(name);
+    const candidates = said ? said.ingredients : (p?.ingredients ?? []);
     let contributed = false;
     for (const i of candidates) {
       const existing = index.get(keyOf(i.name));
@@ -100,16 +109,17 @@ export function buildDraft(input: BuildInput): Draft {
           existing.note = [existing.note, `cantidad leída en ${name}: "${i.raw.slice(0, 80)}"`].filter(Boolean).join('; ');
           contributed = true;
         }
-      } else if (primary === null || i.quantity !== null || (p && p.ingredients.length >= 3)) {
+      } else if (primary === null || i.quantity !== null || (!said && p && p.ingredients.length >= 3)) {
         push(toDraftIngredient(i, name, lex));
         contributed = true;
       }
     }
     if (!steps.length) {
-      const fromSpoken = (name === 'subtitles' || name === 'transcript') ? spokenSteps(text) : (p?.steps ?? []);
-      for (const s of fromSpoken) steps.push({ text: s.text, ...(s.timerSec ? { timerSec: s.timerSec } : {}), evidence: { source: name, line: s.text } });
-      if (fromSpoken.length) contributed = true;
+      const fromText = said ? said.steps : (p?.steps ?? []);
+      for (const s of fromText) steps.push({ text: s.text, ...(s.timerSec ? { timerSec: s.timerSec } : {}), evidence: { source: name, line: s.evidence ?? s.text } });
+      if (fromText.length) contributed = true;
     }
+    if (said) servings ??= said.servings;
     if (p) { servings ??= p.servings; prepMin ??= p.prepMin; cookMin ??= p.cookMin; title ??= p.title; }
     if (contributed) used.add(name);
   }
@@ -145,6 +155,13 @@ export function scoreDraft(draft: Draft): void {
   if (!draft.steps.length) missing.push('pasos');
   if (!draft.servings) missing.push('raciones');
   const notes: string[] = [];
+  // What was only heard in the video is less reliable than a written list: amounts are often missing or misheard.
+  const heard = ing.filter((i) => isSpeech(i.evidence?.source));
+  if (heard.length || draft.steps.some((x) => isSpeech(x.evidence?.source))) {
+    notes.push('Leído de lo que se dice en el vídeo: revisa cantidades, ingredientes y pasos antes de guardar.');
+    score *= 0.8;
+    if (ing.length && heard.length === ing.length) score = Math.min(score, 0.6);
+  }
   const unverified = [...ing, ...draft.steps].filter((x) => x.evidence?.verified === false).length;
   if (unverified) notes.push(`${unverified} línea(s) propuestas por el modelo no se encuentran literalmente en el texto: compruébalas.`);
   const unknown = ing.filter((i) => !i.ingredientId).length;
