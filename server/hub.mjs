@@ -1,9 +1,9 @@
 // The family hub as this app sees it: calls to sibling apps, the local model, events. Every method degrades instead of throwing;
 // tests replace the whole object with setHub().
 import * as family from './hoard-link.js';
+import { callTool } from './hoard-commons/fam-services.js';
 
 const real = {
-  call: (app, tool, args, options) => family.call(app, tool, args, options),
   chat: (options) => family.chat(options),
   linkStatus: (options) => family.linkStatus(options),
   emit: (type, data) => family.emit(type, data),
@@ -13,19 +13,25 @@ let current = real;
 export const hub = new Proxy({}, { get: (_, key) => current[key] });
 export const setHub = (fake) => { current = fake || real; };
 
-/** Result of family.call → { ok, result?, why? } where why is a plain Spanish reason when it failed. */
-export async function callApp(app, tool, args = {}, options = {}) {
-  let response;
-  try { response = await hub.call(app, tool, args, options); } catch (error) { response = { ok: false, error: String(error?.message || error) }; }
-  if (response?.ok) return { ok: true, result: response.result ?? response };
-  const status = response?.status;
-  const error = String(response?.error || '');
-  let why;
-  if (status === null || status === undefined || /not reachable|ECONNREFUSED|fetch failed/i.test(error)) why = `No se alcanza el centro de apps (Hoard Hub); no se puede usar ${app}.`;
-  else if (status === 404 || /unknown tool|not found|no such/i.test(error)) why = `${app} no tiene la herramienta ${tool} (¿versión antigua o app parada?).`;
-  else if (status === 401) why = 'El centro de apps ha rechazado el token de CookHoard.';
-  else why = `${app} no ha podido responder: ${error || `HTTP ${status}`}`;
-  return { ok: false, why, error, status: status ?? null };
+/** A plain Spanish reason for a failed call, from the shared failure kinds (hub_down, app_down, app_missing, tool_missing, timeout, auth, tool_error, client_error). */
+export function whyFailed(app, tool, failure = {}) {
+  const error = String(failure.error || '');
+  switch (failure.kind) {
+    case 'hub_down': return `No se alcanza el centro de apps (Hoard Hub); no se puede usar ${app}.`;
+    case 'app_down': return `${app} no está en marcha: el centro de apps no lo alcanza.`;
+    case 'app_missing': return `${app} no está registrado en el centro de apps.`;
+    case 'tool_missing': return `${app} no tiene la herramienta ${tool} (¿versión antigua o app parada?).`;
+    case 'auth': return 'El centro de apps ha rechazado el token de CookHoard.';
+    case 'timeout': return `${app} ha tardado demasiado en responder.`;
+    default: return `${app} no ha podido responder: ${error || `HTTP ${failure.status ?? '?'}`}`;
+  }
+}
+
+/** One tool of a sibling app through the hub, classified by the shared client: { ok, result } or { ok: false, why, error, kind, status }. */
+export async function callApp(app, tool, args = {}, { timeoutMs = 120000 } = {}) {
+  const done = await callTool(app, tool, args, { timeoutS: timeoutMs / 1000 });
+  if (done.ok) return { ok: true, result: done.data };
+  return { ok: false, why: whyFailed(app, tool, done), error: done.error, kind: done.kind, status: done.status ?? null };
 }
 
 /** Local model through the hub. Returns { ok, text, json, model } or { ok: false, error: 'no_model'|..., why }. */

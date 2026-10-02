@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { setHub } from '../hub.mjs';
 import { setClock } from '../clock.mjs';
 import { resetDetection } from '../media.mjs';
+import * as family from '../hoard-link.js';
 
 export const FAKE_YTDLP = fileURLToPath(new URL('./fixtures/fake-ytdlp.mjs', import.meta.url));
 
@@ -15,7 +16,35 @@ export function scratch(prefix = 'cookhoard-test-') {
   process.env.COOKHOARD_DATA_DIR = dir;
   process.env.COOKHOARD_SCHEDULER = '0';
   resetDetection();
-  return { dir, done() { if (before === undefined) delete process.env.COOKHOARD_DATA_DIR; else process.env.COOKHOARD_DATA_DIR = before; setHub(null); setClock(null); resetDetection(); fs.rmSync(dir, { recursive: true, force: true }); } };
+  return { dir, done() { if (before === undefined) delete process.env.COOKHOARD_DATA_DIR; else process.env.COOKHOARD_DATA_DIR = before; setHub(null); unhookHubFetch(); setClock(null); resetDetection(); fs.rmSync(dir, { recursive: true, force: true }); } };
+}
+
+// Calls to sibling apps travel through the shared client (hoard-link.js -> the hub's HTTP proxy). The double answers them in process: fetch() to the
+// hub's address is routed to hub.call(app, tool, args), everything else goes to the real fetch.
+const realFetch = globalThis.fetch;
+const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+export function unhookHubFetch() { globalThis.fetch = realFetch; }
+function hookHubFetch(hub) {
+  globalThis.fetch = async (input, init) => {
+    const url = String(input?.url ?? input);
+    const base = family.status().hub;
+    if (!url.startsWith(base)) return realFetch(input, init);
+    const rest = url.slice(base.length);
+    const call = rest.match(/^\/api\/apps\/([^/]+)\/call$/);
+    if (hub.down) {
+      if (call && init?.method === 'POST') { const { tool, arguments: args } = JSON.parse(init.body); hub.log.calls.push({ app: decodeURIComponent(call[1]), tool, args }); }
+      throw new TypeError('fetch failed');
+    }
+    if (call && init?.method === 'POST') {
+      const { tool, arguments: args } = JSON.parse(init.body);
+      const app = decodeURIComponent(call[1]);
+      const answer = await hub.call(app, tool, args);
+      if (answer.ok) return json(200, { ok: true, app, tool, status: 200, contract: '1', result: answer.result });
+      return json(answer.status ?? 502, { ok: false, app, tool, status: answer.status ?? null, contract: '1', error: answer.error });
+    }
+    if (/^\/api\/apps\/[^/]+$/.test(rest)) return json(200, { state: 'running' });
+    return json(200, { ok: true });
+  };
 }
 
 export const fixedClock = (iso = '2026-09-10T10:00:00') => setClock(() => new Date(iso));
@@ -49,6 +78,8 @@ export function fakeHub({ calls = {}, chat = null, vision = false, down = false 
     emit(type, data) { log.events.push({ type, data }); return Promise.resolve(true); },
     status() { return { hub: 'http://127.0.0.1:8810' }; },
   };
+  hub.down = down;
   setHub(hub);
+  hookHubFetch(hub);
   return hub;
 }
