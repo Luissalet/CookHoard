@@ -2,46 +2,86 @@
 
 [Español](README.es.md)
 
-CookHoard is a **local personal kitchen** for Faustus. It runs as an MCP stdio server that Faustus starts when it needs a tool. It needs no website, domain, account, Supabase instance or permanent server.
+CookHoard is a local kitchen for Faustus and the Hoard family: recipes, a pantry with expiry dates, a weekly menu, a shopping list, supermarket tickets and prices. It is a small web app (Express and React, default `http://127.0.0.1:5201`) plus an MCP server that Faustus starts. Both use the same tools and the same `kitchen.json`. Nothing needs an account or leaves the computer, except the video links you ask it to read.
 
-## Start
+## What it does
+
+- **Recipes.** Search and filter by time, diet, source and saved. Scale servings, see the cost per serving, cooking history with ratings, approximate nutrition, print. Cooking mode shows one step at a time in large type, with timers (sound and vibration), the ingredient list on the side, keyboard navigation and a screen wake lock where the browser allows it.
+- **Recipes from videos and reels.** Paste an Instagram, TikTok, YouTube or Facebook link. yt-dlp reads the caption and subtitles; if that is not enough the audio is transcribed by Funes (through the hub); with ffmpeg and a vision model the text on screen is read from a few key frames. A deterministic parser reads the text first and a local model fills gaps using a JSON schema. The result is always a draft: every ingredient and step shows the line it came from and whether the number was found in the source text, and nothing is saved until you accept it. The thumbnail is saved locally.
+- **Recipes from text.** Paste a recipe in Spanish or English, with or without section headers, bullets or numbering.
+- **Own ingredient dictionary.** Unknown ingredients are created on the fly. You can add ingredients with category, aliases and shelf life, and teach aliases such as a ticket abbreviation. Learned aliases apply to recipes and tickets from then on.
+- **Pantry.** Items live in the fridge, the pantry or the freezer, with quantity, opened date and expiry. A date typed by you is exact; a date from general storage rules is estimated and always labelled `≈` with its basis. Cooked leftovers enter the fridge with a date.
+- **Tickets and prices.** Paste ticket text, read a photo or PDF through Kafka (OCR), or import supermarket receipts found in the mail through Kafka. Food lines go to the pantry and the price book; lines it cannot recognise wait in a review queue where you say what they are (and it remembers), mark them as not food or ignore them for good. A model may suggest a match for a line; the suggestion is shown, never applied by itself. Duplicate tickets are detected.
+- **Costs.** Cost of a recipe and of the weekly menu from your own prices (median of recent purchases), spending per week and month from tickets, and the food spending recorded in Ledger when it is running. Costs with missing prices are marked as partial.
+- **What to cook.** Dinner ideas ranked by what you have, what is about to expire, the season and how recently you cooked each dish; leftovers appear as options.
+- **Menu and shopping list.** A weekly menu with servings per day, ingredient totals for the week with stock subtracted, and a shopping list grouped by supermarket section in an order you choose. Copy as text or Markdown, print, mark items as bought (they move to the pantry).
+- **Price watching.** `tantalus_watch_add` hands a product page to Tantalus.
+- **Daily routine.** At 09:00 (and when the app starts after missing it) CookHoard sends `cookhoard.pantry.expiring` on the family bus when something expires within two days.
+- **Interface.** Spanish first with an English toggle, dark by default with a light theme, installable as a web app, usable at phone width. Screens: Hoy, Recetas, Importar, Despensa, Menú, Compra, Precios, Ajustes.
+
+When something cannot run, the answer says so: no yt-dlp, no ffmpeg, no local model, Funes, Kafka, Ledger or Tantalus unreachable. It never fills in data it did not read.
+
+## Run it
+
+Requires Node 22.13 or newer. yt-dlp and ffmpeg are optional (video links need yt-dlp; key frames need ffmpeg).
 
 ```sh
 npm install
-npm run mcp
+npm run build        # builds the web interface into apps/web/dist
+npm start            # app on http://127.0.0.1:5201
 ```
 
-Register [`faustus-plugin.json`](faustus-plugin.json) in Faustus and set `COOKHOARD_DIR` to this repository. Data is stored in `%LOCALAPPDATA%\CookHoard\kitchen.json` on Windows or `~/.local/share/CookHoard/kitchen.json` on Linux/macOS. Set `COOKHOARD_DATA_DIR` to choose a different local directory. Chats using the same directory share one kitchen.
+With Faustus: register [`faustus-plugin.json`](faustus-plugin.json) and set `COOKHOARD_DIR` to this folder. Faustus launches `apps/mcp/bootstrap.mjs`; that bridge sends every tool call to the running app, starts the app if it is not answering, and runs the tools in the same process if the app cannot start. App and bridge write the same file under a lock, so neither loses the other's changes.
 
-## Capabilities
+Windows setup for videos: `winget install yt-dlp.yt-dlp` and `winget install Gyan.FFmpeg`. Instagram and TikTok often refuse anonymous downloads: in Ajustes choose the browser whose cookies to use (Edge, Chrome or Firefox) or a `cookies.txt` file.
 
-- Starter and personal recipes, search, steps and editing with quantities, servings, times, diets and allergens.
-- Recommendations based on available ingredients, season and the character of each dish.
-- A saved weekly menu, individual day changes and a shopping list without duplicates.
-- Recipe and serving selection per day, plus ingredient totals for the whole menu or selected days.
-- A combined pantry and shopping list: a checked ingredient means you already have it. Expiration dates support suggestions for using food before it expires.
-- Saved cookbook, cooking history with ratings and notes, badges and approximate nutrition.
-- Import a recipe directly from a page containing `schema.org/Recipe` JSON-LD with `import_recipe_url`, or paste JSON-LD with `import_recipe_jsonld`. Repeating a page URL reuses its saved recipe. Full kitchen export and restore as JSON.
+### Settings (Ajustes)
 
-Reusable logic lives in `packages/core`; MCP tools and persistence live in `apps/mcp`. One local `kitchen.json` stores the data. `export_kitchen` returns a complete backup, and `import_kitchen` restores it without duplicating recipes or cooked dishes.
+Language, theme (stored in the browser), weekly budget, default servings, shopping section order, supermarket names for mail tickets, yt-dlp path, cookies (browser or file), read on-screen text, transcribe audio with Funes, status of yt-dlp, ffmpeg, models, hub and the daily routine, backup download and restore, and the ingredient dictionary.
 
-## Menu servings
+### Environment variables
 
-You can ask Faustus: “Plan this week and put my tortilla on Monday for four and Tuesday for two. Add up the ingredients for those two days.” Then: “Change Monday to three servings and recalculate.”
+| Variable | Meaning |
+| --- | --- |
+| `COOKHOARD_PORT` (or `PORT`) | Port, default 5201. With `PORT_STRICT=1` the app exits instead of choosing another port. |
+| `COOKHOARD_DATA_DIR` | Data folder. Default `%LOCALAPPDATA%\CookHoard` on Windows, `~/.local/share/CookHoard` elsewhere. |
+| `COOKHOARD_ALLOWED_HOSTS` | Extra host names allowed besides localhost. |
+| `COOKHOARD_SCHEDULER=0` | Turn off the daily routine. |
+| `COOKHOARD_YTDLP`, `COOKHOARD_FFMPEG`, `COOKHOARD_PYTHON` | Paths to yt-dlp, ffmpeg and Python (for `.py` scripts). |
+| `COOKHOARD_URL`, `COOKHOARD_TOKEN`, `COOKHOARD_TOKEN_FILE` | Where the bridge finds the app and its token. |
+| `COOKHOARD_AUTOSTART=0` | The bridge does not start the app. |
+| `COOKHOARD_MODE=inprocess` | The bridge never proxies; it runs the tools itself. |
 
-`set_menu_day` modifies one day of the current menu (`day: 1` is Monday; `7` is Sunday). `recipe_id` and `servings` are optional. Repeating a selection does not add days or duplicate quantities. Omitting `servings` restores the recipe's base yield. A recipe needs a known base yield to scale; add it through `update_recipe` if missing.
+### Data
 
-`menu_ingredients` calculates the whole week or a subset such as `days: [1, 2]`. It sums repeated recipes and scales by selected servings divided by base servings. It includes non-main and staple ingredients; optional ingredients are listed separately. `quantity` is the full recipe demand; `covered_quantity` is stock allocated from checked pantry items; `to_buy_quantity` is the remaining exact deficit. Stock is allocated to required ingredients before optional ones. Grams/kilograms and millilitres/litres can be compared; recipe quantities still keep their original units. Unknown amounts, checked items without a known quantity and incompatible units produce an explicit `stock_status` and null deficit instead of a guessed subtraction. Items marked depleted require the full quantity. Unlisted staples remain assumptions. `quantity: null` marks an unknown total; `known_quantity` is the known subtotal. This query leaves the menu, recipes and shopping list unchanged.
+Everything is in the data folder: `kitchen.json` (recipes, pantry, shopping list, dictionary, tickets, price book, drafts, settings), `media/` (thumbnails), `mcp-token`, `app-url`, `app.pid`, `scheduler.json`. A kitchen written by version 0.1 is read as version 2 in memory; the first write stores version 2 and keeps the original as `kitchen.json.v1.bak`. `export_kitchen` and `import_kitchen` accept both versions.
 
-Use `set_kitchen_item` to correct the quantity or unit of an existing pantry item, then ask for `menu_ingredients` again. Quantity corrections do not require rebuilding the menu.
+## Interfaces
 
-## Verify
+- Web app: the screens above. They call the same tools as the assistant through `POST /api/tools/:name`.
+- Agent routes: `GET /api/health`, `GET /api/agent/tools`, `POST /api/agent/call` with `Authorization: Bearer <contents of mcp-token>`. Requests must come from the local machine.
+- MCP: 55 tools (24 read-only). The full catalogue with arguments is in [docs/API.md](docs/API.md), generated from the code.
+- Events: `cookhoard.recipe.imported`, `cookhoard.menu.planned`, `cookhoard.pantry.expiring`.
+
+## Tests
 
 ```sh
+npm test               # core, server, web and MCP bridge
 npm run test:core
-npm run test --workspace @cookhoard/mcp
+npm run test:server
+npm run test:web
+npm run docs:api       # regenerate docs/API.md (a test fails when it is stale)
 ```
 
-The former Expo app and social Supabase prototype were retired from the active product. Their source remains recoverable in older Git commits. The user confirmed they contained only test data; no remote service was modified or cancelled.
+Tests use invented recipes and tickets, a fake yt-dlp, a fake hub and an injectable clock.
+
+## Limits
+
+- Video import depends on the platform allowing the download. Without cookies, Instagram and TikTok often refuse; the draft then says so and uses whatever text you paste.
+- Reading audio, key frames, photos and mail needs Funes, a vision model, Kafka and the hub to be running. Those paths are tested against mocks, not against the real apps.
+- Expiry dates that are not typed by you are estimates from general rules, not the date printed on the package.
+- Costs and spending are only as complete as your price book; incomplete totals are marked.
+- Text coming from the server (reasons, notes) is Spanish in both interface languages.
+- Recipes are not translated; a recipe stays in the language it was written in.
 
 License: AGPL-3.0-or-later.
