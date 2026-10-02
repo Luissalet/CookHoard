@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { callTool } from '../tools/index.mjs';
 import { readKitchen } from '../store.mjs';
 import { scratch, fakeHub, fixedClock } from './helpers.mjs';
@@ -158,7 +159,7 @@ test('a ticket file is read by Kafka\'s stateless extractor (OCR for a scan) and
   let asked;
   const hub = setup(t, { calls: { 'kafka.doc_extract': (args) => { asked = args; return { kind: 'pdf', title: '', text: TICKET_ROWS, units: [], needs_ocr: false, notes: [], pages_ocr: 0 }; } } });
   const result = await callTool('ticket_import_file', { path: '/tmp/cookhoard-fixtures/ticket.pdf' });
-  assert.deepEqual(asked, { path: '/tmp/cookhoard-fixtures/ticket.pdf', ocr: 'auto', max_pages: 400, lang: 'es', wait_s: 150 });
+  assert.deepEqual(asked, { path: path.resolve('/tmp/cookhoard-fixtures/ticket.pdf'), ocr: 'auto', max_pages: 400, lang: 'es', wait_s: 150 });
   assert.equal(result.status, 'imported');
   assert.equal(result.ticket.source, 'file');
   assert.equal(result.ticket.file, 'ticket.pdf');

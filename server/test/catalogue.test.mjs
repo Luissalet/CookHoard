@@ -33,6 +33,6 @@ test('read-only tools carry readOnlyHint, writing tools never claim it, destruct
 
 test('docs/API.md is generated from the catalogue and is up to date', () => {
   const current = fs.readFileSync(new URL('../../docs/API.md', import.meta.url), 'utf8');
-  assert.equal(current, renderApiDocs(), 'run "npm run docs:api" and commit docs/API.md');
+  assert.equal(current.replaceAll('\r\n', '\n'), renderApiDocs(), 'run "npm run docs:api" and commit docs/API.md');
   for (const tool of TOOLS) assert.ok(current.includes(`### \`${tool.name}\``), tool.name);
 });

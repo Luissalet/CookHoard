@@ -55,7 +55,7 @@ test('with no subtitles Links makes the audio, Funes transcribes it and the tran
   assert.equal(result.draft.status_notes.subtitles, 'sin subtítulos');
   assert.equal(result.draft.status_notes.transcript, 'ok (small)');
   assert.equal(result.draft.sources.transcript, transcript);
-  assert.deepEqual(funes, { path: '/tmp/links/asr/natillas.wav', language: 'auto', word_timestamps: true, vad: true, wait_s: 150 });
+  assert.deepEqual(funes, { path: path.resolve('/tmp/links/asr/natillas.wav'), language: 'auto', word_timestamps: true, vad: true, wait_s: 150 });
   assert.deepEqual(tools(h), ['links.media_info', 'links.media_subtitles', 'links.media_audio_for_asr', 'funes.transcribe_file']);
 });
 
