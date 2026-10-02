@@ -58,7 +58,7 @@ export interface Recipe {
   id: string;
   authorId: string;
   authorName?: string;
-  /** Thingiverse-style lineage: id of the recipe this one was remixed from. */
+  /** Lineage: id of the recipe this one was remixed from. */
   remixOf?: string;
   title: string;
   description?: string;
@@ -84,7 +84,7 @@ export interface Recipe {
   saved?: boolean;        // local UI flag: is it in my cookbook
 }
 
-/** A "make": proof you cooked it (Cults3D-style). The heart of the social layer. */
+/** A "make": a record that you cooked a recipe. */
 export interface Make {
   id: string;
   recipeId: string;

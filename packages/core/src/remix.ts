@@ -1,4 +1,4 @@
-// Remixes — Thingiverse-style lineage for recipes. A remix is a full recipe that points to its
+// Remixes: lineage for recipes. A remix is a full recipe that points to its
 // base via `remixOf`. Pure helpers: lineage walking, descendant counting, and a structural diff
 // ("what did this remix change?") used by the recipe page. No UI here; fully testable in Node.
 
