@@ -1,89 +1,70 @@
 // The Express app: UI, REST, the family contract (/api/health, /api/agent/*) and the media folder. main.mjs boots it; tests call createApp().
 import express from 'express';
-import crypto from 'node:crypto';
+import { z } from 'zod';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createGuard } from './guard.mjs';
 import { ROOT, version } from './version.mjs';
 import { dataDir as resolveDataDir } from './store.mjs';
-import { TOOLS_BY_NAME, callTool, toolCatalog, INSTRUCTIONS } from './tools/index.mjs';
+import { TOOLS, TOOLS_BY_NAME, callTool, INSTRUCTIONS } from './tools/index.mjs';
+import { annotationsOf } from './tools/common.mjs';
 import { manifest, serviceWorker } from './manifest.mjs';
 import { detectTools } from './media.mjs';
 import { schedulerStatus, startScheduler } from './scheduler.mjs';
 import { readKitchen } from './store.mjs';
 import { getSettings } from '@cookhoard/core';
 import * as family from './hoard-link.js';
+import { createGuard, installSpa, installErrorHandlers, makeAgentRoutes, errorBody } from './hoard-commons/express.js';
+import { readOrCreateToken } from './hoard-commons/server.js';
+import { serviceAvailable } from './hoard-commons/fam-services.js';
 
 export { ROOT };
 
-export function writeToken(directory) {
-  const token = crypto.randomBytes(32).toString('hex');
-  fs.mkdirSync(directory, { recursive: true });
-  fs.writeFileSync(path.join(directory, 'mcp-token'), token, { mode: 0o600 });
-  return token;
-}
+/** The bearer token of this data folder: <data>/mcp-token, created once and then kept (a bridge that is already running keeps working). */
+export const loadToken = (directory) => readOrCreateToken(path.join(directory, 'mcp-token'));
 
-const errorStatus = (error) => error.status || (error.issues ? 400 : /Los datos de cocina tienen un formato desconocido/.test(error.message) ? 409 : 500);
-const errorMessage = (error) => (error.issues ? error.issues.map((i) => `${i.path.join('.') || 'input'}: ${i.message}`).join('; ') : error.message);
+/** The unreadable-kitchen error is a conflict (409) and its Spanish message is for the person; anything else goes through the shared envelope. */
+const shaped = (error) => (/Los datos de cocina tienen un formato desconocido/.test(error?.message) ? Object.assign(error, { status: 409, expose: true }) : error);
+
+/** Agent results are capped (the largest list is halved until it fits; a `truncated` block says what was cut). The UI route is not. */
+const AGENT_RESULT_BYTES = 100_000;
 
 export function createApp({ dataDir, allowedHosts = process.env.COOKHOARD_ALLOWED_HOSTS, serveStatic = true, startBackground = false } = {}) {
   if (dataDir) process.env.COOKHOARD_DATA_DIR = dataDir;
   const directory = resolveDataDir();
   fs.mkdirSync(directory, { recursive: true });
-  const token = writeToken(directory);
+  const token = loadToken(directory);
   family.configure({ app: 'cookhoard', dataDir: directory });
 
   const app = express();
   app.disable('x-powered-by');
-  app.use(createGuard(allowedHosts));
+  app.use(createGuard({ allowedHosts }));
   app.use(express.json({ limit: '12mb' }));
 
   app.get('/api/health', async (req, res) => {
     const tools = await detectTools(getSettings(readKitchen()));
     res.json({ service: 'cookhoard', version, ytdlp: tools.ytdlp ? { version: tools.ytdlp.version } : null, ffmpeg: tools.ffmpeg ? { version: tools.ffmpeg.version } : null,
-      scheduler: schedulerStatus(), tools: TOOLS_BY_NAME.size, hoard_link: family.healthBlock() });
+      links_media: await serviceAvailable('media'), scheduler: schedulerStatus(), tools: TOOLS_BY_NAME.size, hoard_link: family.healthBlock() });
   });
 
-  app.get('/api/agent/tools', (req, res) => res.json({ instructions: INSTRUCTIONS, tools: toolCatalog() }));
-
-  // family.recordAgentRoute: one agent.call event per call on the hub's bus.
-  app.post('/api/agent/call', family.recordAgentRoute(async (req, res) => {
-    const header = req.headers.authorization || '';
-    const given = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
-    const ok = given.length === token.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(token));
-    if (!ok) return res.status(401).json({ error: 'Token MCP no válido.' });
-    const { name, arguments: args } = req.body || {};
-    if (typeof name !== 'string') return res.status(400).json({ error: 'Falta el nombre de la herramienta.' });
-    try { res.json(await callTool(name, args)); }
-    catch (error) { res.status(errorStatus(error)).json({ error: errorMessage(error), ...(error.code ? { code: error.code } : {}) }); }
-  }));
+  // GET /api/agent/tools and POST /api/agent/call: Bearer token, result cap, one error envelope and the agent.call event of the family bus.
+  makeAgentRoutes({ app: 'cookhoard', tools: TOOLS.map((t) => ({ ...t, annotations: annotationsOf(t) })), z, token, instructions: INSTRUCTIONS, capLimit: AGENT_RESULT_BYTES,
+    callTool: (name, args) => callTool(name, args).catch((error) => { throw shaped(error); }), recordCall: family.recordCall }).install(app);
 
   // The web UI calls the same tools (no token: same origin, guarded by the local-only guard).
   app.post('/api/tools/:name', async (req, res) => {
     try { res.json(await callTool(req.params.name, req.body || {})); }
-    catch (error) { res.status(errorStatus(error)).json({ error: errorMessage(error), ...(error.code ? { code: error.code } : {}) }); }
+    catch (error) { const { status, body } = errorBody(shaped(error)); res.status(status).json(body); }
   });
 
-  app.use('/media', (req, res, next) => { res.set('Cache-Control', 'private, max-age=86400'); next(); }, express.static(path.join(directory, 'media'), { fallthrough: false, index: false }));
+  app.use('/media', (req, res, next) => { res.set('Cache-Control', 'private, max-age=86400'); next(); }, express.static(path.join(directory, 'media'), { index: false }),
+    (req, res) => res.status(404).json({ error: 'Imagen no encontrada.', code: 'not_found' }));
 
   app.get('/manifest.webmanifest', (req, res) => res.type('application/manifest+json').send(JSON.stringify(manifest())));
   app.get('/sw.js', (req, res) => res.set('Service-Worker-Allowed', '/').type('application/javascript').send(serviceWorker()));
-  app.all(/^\/api(\/.*)?$/, (req, res) => res.status(404).json({ error: 'Ruta no encontrada.' }));
 
-  const dist = path.join(ROOT, 'apps', 'web', 'dist');
-  if (serveStatic && fs.existsSync(dist)) {
-    app.use(express.static(dist));
-    app.get(/^(?!\/api|\/media).*/, (req, res) => res.sendFile(path.join(dist, 'index.html')));
-  } else if (serveStatic) {
-    app.get('/', (req, res) => res.status(503).type('text/plain').send('CookHoard está en marcha, pero falta la interfaz: ejecuta "npm run build" una vez.'));
-  }
-
-  // eslint-disable-next-line no-unused-vars
-  app.use((error, req, res, next) => {
-    if (error.type === 'entity.parse.failed') return res.status(400).json({ error: 'JSON no válido.' });
-    if (error.status === 404 && req.path.startsWith('/media')) return res.status(404).json({ error: 'Imagen no encontrada.' });
-    res.status(errorStatus(error)).json({ error: errorMessage(error) });
-  });
+  if (serveStatic) installSpa(app, path.join(ROOT, 'apps', 'web', 'dist'), { express });
+  else app.all(/^\/api(\/.*)?$/, (req, res) => res.status(404).json({ error: 'Ruta no encontrada.', code: 'not_found' }));
+  installErrorHandlers(app);
 
   const scheduler = startBackground ? startScheduler() : { enabled: false, stop() {} };
   return { app, token, scheduler, dataDir: directory };
