@@ -1,5 +1,5 @@
 // Status, settings, the "Hoy" overview and the link to the price watcher app.
-import { getSettings, pantryView, whatToCook, menuWeekKey, normaliseSections, SECTION_IDS } from '@cookhoard/core';
+import { getSettings, pantryView, whatToCook, menuWeekKey, normaliseSections, SECTION_IDS, SECTIONS, CATEGORIES } from '@cookhoard/core';
 import { readKitchen, updateKitchen, dataDir } from '../store.mjs';
 import { now, today } from '../clock.mjs';
 import { callApp, modelStatus, hub } from '../hub.mjs';
@@ -27,7 +27,8 @@ export async function statusView() {
 
 export function settingsView(state) {
   const s = getSettings(state);
-  return { lang: s.lang, sections: s.sections, weeklyBudget: s.weeklyBudget, defaultServings: s.defaultServings, supermarkets: s.supermarkets, media: mediaPublic(s), hub: s.hub };
+  return { lang: s.lang, sections: s.sections, weeklyBudget: s.weeklyBudget, defaultServings: s.defaultServings, supermarkets: s.supermarkets, media: mediaPublic(s), hub: s.hub,
+    section_labels: SECTIONS.map(({ id, label, labelEn }) => ({ id, es: label, en: labelEn })), categories: CATEGORIES.map(({ id, label, section, place }) => ({ id, label, section, place })) };
 }
 
 const settingsPatch = z.object({
