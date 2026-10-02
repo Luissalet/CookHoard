@@ -132,6 +132,13 @@ test('recipe text parser: sections, bullets, fractions, units, steps with timers
   assert.equal(plain.steps.length, 4);
   assert.equal(plain.steps[0]!.timerSec, 300);
   assert.equal(plain.ingredients[3]!.unit, 'ml');
+
+  // A web page: quantity bullets, then a steps header but no ingredients header.
+  const page = parseRecipeText('Crema de calabacín\n- 2 calabacines\n- 1 cebolla\n- 750 ml de caldo\nPreparación\n- Pica la cebolla y sofríela 5 minutos.\n- Cubre con el caldo y cuece 25 minutos.');
+  assert.equal(page.title, 'Crema de calabacín');
+  assert.deepEqual(page.ingredients.map((i) => [i.quantity, i.unit, i.name]), [[2, null, 'calabacines'], [1, null, 'cebolla'], [750, 'ml', 'caldo']]);
+  assert.equal(page.steps.length, 2);
+  assert.equal(page.plausible, true);
 });
 
 test('ingredient lines: ranges, words, vague amounts, notes and trailing quantities', () => {

@@ -5,3 +5,5 @@ web-build/
 *.log
 .DS_Store
 apps/*/.env
+data/
+*.lock

@@ -304,7 +304,12 @@ export function parseRecipeText(input: string): ParsedRecipeText {
       ordered.push({ ...entry, mode: target });
     }
   } else {
-    for (const entry of classified) ordered.push(entry);
+    // A steps header but no ingredients header (common on web pages): quantity lines above it are the ingredients.
+    for (const entry of classified) {
+      const bare = entry.text.replace(bulletRe, '').trim();
+      if (entry.mode === 'head' && !sawIngHeader && QTY_START.test(bare) && isIngredientLike(bare)) ordered.push({ ...entry, mode: 'ing' });
+      else ordered.push(entry);
+    }
   }
 
   for (const entry of ordered) {
