@@ -139,6 +139,11 @@ test('recipe text parser: sections, bullets, fractions, units, steps with timers
   assert.deepEqual(page.ingredients.map((i) => [i.quantity, i.unit, i.name]), [[2, null, 'calabacines'], [1, null, 'cebolla'], [750, 'ml', 'caldo']]);
   assert.equal(page.steps.length, 2);
   assert.equal(page.plausible, true);
+
+  // A bare "4 personas" line is the number of servings, not an ingredient.
+  const bare = parseRecipeText('Pollo al limón\n4 personas\n\n800 g de pechuga de pollo\n2 limones\n\nDora el pollo. Añade el limón. Cocina 20 minutos.');
+  assert.equal(bare.servings, 4);
+  assert.deepEqual(bare.ingredients.map((i) => i.name), ['pechuga de pollo', 'limones']);
 });
 
 test('ingredient lines: ranges, words, vague amounts, notes and trailing quantities', () => {

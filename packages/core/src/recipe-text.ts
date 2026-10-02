@@ -279,7 +279,8 @@ export function parseRecipeText(input: string): ParsedRecipeText {
     }
     if (isHeader(foldedNoBullet, NOTES_HEAD)) { mode = 'notes'; continue; }
     const s = parseServings(text);
-    if (s && text.split(' ').length <= 8 && !QTY_START.test(text) && mode !== 'steps') { servings ??= s; continue; }
+    const bareServings = /^\d{1,2}(?:\s*-\s*\d{1,2})?\s*(?:personas?|raciones|porciones|comensales|servings?|portions?|people)\s*[.!]?$/.test(foldedNoBullet);
+    if (s && (bareServings || (text.split(' ').length <= 8 && !QTY_START.test(text))) && mode !== 'steps') { servings ??= s; continue; }
     if (mode === 'ing') {
       const isGroup = (/[:：]\s*$/.test(text) && text.split(' ').length <= 6) || (/^(?:para|for)\s+(?:la|el|los|las|the)\b/i.test(foldedNoBullet) && !/\d/.test(text) && text.split(' ').length <= 6);
       if (isGroup) { group = noBullet.replace(/[:：]\s*$/, ''); continue; }
