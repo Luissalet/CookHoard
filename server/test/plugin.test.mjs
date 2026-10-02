@@ -21,9 +21,9 @@ test('every placeholder used is declared and has a default or is the install fol
 });
 
 test('the app block matches the server', () => {
-  assert.equal(manifest.app.url_default, `http://127.0.0.1:5201`);
+  assert.equal(manifest.app.url_default, `http://127.0.0.1:5210`);
   assert.equal(manifest.app.health.expect.service, 'cookhoard');
-  assert.equal(manifest.app.launch_hint.env.COOKHOARD_PORT, '5201');
+  assert.equal(manifest.app.launch_hint.env.COOKHOARD_PORT, '5210');
   assert.equal(manifest.app.launch_hint.env.PORT_STRICT, '1');
   assert.ok(fs.existsSync(path.join(ROOT, manifest.app.launch_hint.argv[0])));
   assert.ok(fs.existsSync(path.join(ROOT, 'apps/mcp/bootstrap.mjs')));

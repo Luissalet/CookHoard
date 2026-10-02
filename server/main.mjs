@@ -6,7 +6,7 @@ import { findAvailablePort, validPort } from './port.mjs';
 import { dataDir } from './store.mjs';
 import { version } from './version.mjs';
 
-const PREFERRED = validPort(process.env.COOKHOARD_PORT || process.env.PORT, 5201);
+const PREFERRED = validPort(process.env.COOKHOARD_PORT || process.env.PORT, 5210);
 const PORT = process.env.PORT_STRICT === '1' ? PREFERRED : await findAvailablePort(PREFERRED);
 const directory = dataDir();
 const { app, scheduler } = createApp({ dataDir: directory, startBackground: true });

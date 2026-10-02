@@ -20,7 +20,7 @@ function canListen(port, host) {
 export async function findAvailablePort(preferred, options = {}) {
   const host = options.host || "127.0.0.1";
   const attempts = options.attempts || 100;
-  const first = validPort(preferred, 5201);
+  const first = validPort(preferred, 5210);
   for (let offset = 0; offset < attempts && first + offset <= 65535; offset++) {
     const port = first + offset;
     if (await canListen(port, host)) return port;

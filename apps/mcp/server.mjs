@@ -18,7 +18,7 @@ const directory = dataDir();
 family.configure({ app: 'cookhoard', dataDir: directory });
 const LOCAL = new Set(['127.0.0.1', 'localhost', '[::1]']);
 const fixed = process.env.COOKHOARD_URL || '';
-const defaultPort = process.env.COOKHOARD_PORT || process.env.PORT || 5201;
+const defaultPort = process.env.COOKHOARD_PORT || process.env.PORT || 5210;
 
 function baseUrl() {
   let value = fixed;

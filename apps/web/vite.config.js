@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const api = `http://127.0.0.1:${process.env.COOKHOARD_PORT || process.env.PORT || 5201}`;
+const api = `http://127.0.0.1:${process.env.COOKHOARD_PORT || process.env.PORT || 5210}`;
 
 export default defineConfig({
   plugins: [react()],

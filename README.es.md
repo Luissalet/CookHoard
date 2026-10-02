@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-CookHoard es la cocina local de Faustus y de la familia Hoard: recetas, despensa con fechas de caducidad, menú semanal, lista de la compra, tickets del súper y precios. Es una pequeña aplicación web (Express y React, por defecto `http://127.0.0.1:5201`) más un servidor MCP que arranca Faustus. Ambos usan las mismas herramientas y el mismo `kitchen.json`. No necesita cuentas y nada sale del ordenador, salvo los enlaces de vídeo que le pidas leer.
+CookHoard es la cocina local de Faustus y de la familia Hoard: recetas, despensa con fechas de caducidad, menú semanal, lista de la compra, tickets del súper y precios. Es una pequeña aplicación web (Express y React, por defecto `http://127.0.0.1:5210`) más un servidor MCP que arranca Faustus. Ambos usan las mismas herramientas y el mismo `kitchen.json`. No necesita cuentas y nada sale del ordenador, salvo los enlaces de vídeo que le pidas leer.
 
 ## Qué hace
 
@@ -28,7 +28,7 @@ Requiere Node 22.13 o superior. yt-dlp y ffmpeg son opcionales (los enlaces de v
 ```sh
 npm install
 npm run build        # compila la interfaz web en apps/web/dist
-npm start            # aplicación en http://127.0.0.1:5201
+npm start            # aplicación en http://127.0.0.1:5210
 ```
 
 Con Faustus: registra [`faustus-plugin.json`](faustus-plugin.json) y pon `COOKHOARD_DIR` en esta carpeta. Faustus lanza `apps/mcp/bootstrap.mjs`; ese puente manda cada llamada a la aplicación en marcha, la arranca si no responde y ejecuta las herramientas en el mismo proceso si no consigue arrancarla. Aplicación y puente escriben el mismo archivo con un bloqueo, así que ninguno pierde los cambios del otro.
@@ -43,7 +43,7 @@ Idioma, tema (se guarda en el navegador), presupuesto semanal, raciones por defe
 
 | Variable | Significado |
 | --- | --- |
-| `COOKHOARD_PORT` (o `PORT`) | Puerto, por defecto 5201. Con `PORT_STRICT=1` la aplicación termina en lugar de elegir otro. |
+| `COOKHOARD_PORT` (o `PORT`) | Puerto, por defecto 5210. Con `PORT_STRICT=1` la aplicación termina en lugar de elegir otro. |
 | `COOKHOARD_DATA_DIR` | Carpeta de datos. Por defecto `%LOCALAPPDATA%\CookHoard` en Windows, `~/.local/share/CookHoard` en el resto. |
 | `COOKHOARD_ALLOWED_HOSTS` | Nombres de host adicionales permitidos además de localhost. |
 | `COOKHOARD_SCHEDULER=0` | Desactiva la rutina diaria. |

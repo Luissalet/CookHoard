@@ -2,7 +2,7 @@
 
 [Español](README.es.md)
 
-CookHoard is a local kitchen for Faustus and the Hoard family: recipes, a pantry with expiry dates, a weekly menu, a shopping list, supermarket tickets and prices. It is a small web app (Express and React, default `http://127.0.0.1:5201`) plus an MCP server that Faustus starts. Both use the same tools and the same `kitchen.json`. Nothing needs an account or leaves the computer, except the video links you ask it to read.
+CookHoard is a local kitchen for Faustus and the Hoard family: recipes, a pantry with expiry dates, a weekly menu, a shopping list, supermarket tickets and prices. It is a small web app (Express and React, default `http://127.0.0.1:5210`) plus an MCP server that Faustus starts. Both use the same tools and the same `kitchen.json`. Nothing needs an account or leaves the computer, except the video links you ask it to read.
 
 ## What it does
 
@@ -28,7 +28,7 @@ Requires Node 22.13 or newer. yt-dlp and ffmpeg are optional (video links need y
 ```sh
 npm install
 npm run build        # builds the web interface into apps/web/dist
-npm start            # app on http://127.0.0.1:5201
+npm start            # app on http://127.0.0.1:5210
 ```
 
 With Faustus: register [`faustus-plugin.json`](faustus-plugin.json) and set `COOKHOARD_DIR` to this folder. Faustus launches `apps/mcp/bootstrap.mjs`; that bridge sends every tool call to the running app, starts the app if it is not answering, and runs the tools in the same process if the app cannot start. App and bridge write the same file under a lock, so neither loses the other's changes.
@@ -43,7 +43,7 @@ Language, theme (stored in the browser), weekly budget, default servings, shoppi
 
 | Variable | Meaning |
 | --- | --- |
-| `COOKHOARD_PORT` (or `PORT`) | Port, default 5201. With `PORT_STRICT=1` the app exits instead of choosing another port. |
+| `COOKHOARD_PORT` (or `PORT`) | Port, default 5210. With `PORT_STRICT=1` the app exits instead of choosing another port. |
 | `COOKHOARD_DATA_DIR` | Data folder. Default `%LOCALAPPDATA%\CookHoard` on Windows, `~/.local/share/CookHoard` elsewhere. |
 | `COOKHOARD_ALLOWED_HOSTS` | Extra host names allowed besides localhost. |
 | `COOKHOARD_SCHEDULER=0` | Turn off the daily routine. |
