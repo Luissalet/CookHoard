@@ -15,10 +15,11 @@
     "dev": "node server/bootstrap.mjs",
     "build": "npm run build --workspace @cookhoard/web",
     "mcp": "npm run start --workspace @cookhoard/mcp",
-    "test": "npm run test:core && npm run test:server && npm run test --workspace @cookhoard/mcp",
+    "test": "npm run test:core && npm run test:server && npm run test:web && npm run test --workspace @cookhoard/mcp",
     "test:core": "tsx packages/core/test/run.ts && node --import tsx --test packages/core/test/*.test.ts",
     "test:server": "node --import tsx --test server/test/*.test.mjs",
-    "docs:api": "node --import tsx scripts/gen-api-docs.mjs"
+    "docs:api": "node --import tsx scripts/gen-api-docs.mjs",
+    "test:web": "node --test apps/web/test/*.test.mjs"
   },
   "dependencies": {
     "express": "^4.21.2",
