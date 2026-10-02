@@ -8,6 +8,7 @@ import { setClock } from '../clock.mjs';
 import { resetDetection } from '../media.mjs';
 import * as family from '../hoard-link.js';
 import { webForgetAvailability } from '../hoard-commons/fam-web.js';
+import { forgetAvailability } from '../hoard-commons/fam-services.js';
 
 export const FAKE_YTDLP = fileURLToPath(new URL('./fixtures/fake-ytdlp.mjs', import.meta.url));
 
@@ -26,7 +27,7 @@ export function scratch(prefix = 'cookhoard-test-') {
 // hub's address is routed to hub.call(app, tool, args), everything else goes to the real fetch.
 const realFetch = globalThis.fetch;
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-export function unhookHubFetch() { globalThis.fetch = realFetch; webForgetAvailability(); }
+export function unhookHubFetch() { globalThis.fetch = realFetch; webForgetAvailability(); forgetAvailability(); }
 function hookHubFetch(hub) {
   globalThis.fetch = async (input, init) => {
     const url = String(input?.url ?? input);
@@ -87,7 +88,7 @@ export function fakeHub({ calls = {}, chat = null, vision = false, down = false,
   };
   hub.down = down;
   hub.web = web;                  // (payload) => the hub's /api/web/fetch answer; null: the hub has no web service
-  webForgetAvailability();
+  webForgetAvailability(); forgetAvailability();
   setHub(hub);
   hookHubFetch(hub);
   return hub;

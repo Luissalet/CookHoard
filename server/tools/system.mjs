@@ -4,6 +4,7 @@ import { readKitchen, updateKitchen, dataDir } from '../store.mjs';
 import { now, today } from '../clock.mjs';
 import { callApp, modelStatus, hub } from '../hub.mjs';
 import { detectTools } from '../media.mjs';
+import { serviceAvailable } from '../hoard-commons/fam-services.js';
 import { schedulerStatus } from '../scheduler.mjs';
 import { version } from '../version.mjs';
 import { z, tool, recipesOf, freshWeek } from './common.mjs';
@@ -20,7 +21,7 @@ export async function statusView() {
   return { app: 'cookhoard', version, data_dir: dataDir(), today: today(),
     counts: { recipes: state.recipes.length, makes: state.makes.length, pantry: Object.keys(state.pantry).length, shopping_to_buy: state.shopping.filter((i) => !i.checked).length,
       drafts: state.drafts.length, tickets: state.tickets.length, review_queue: reviewQueue(state).length, prices: state.priceBook.length, user_ingredients: state.userIngredients.length },
-    media: { ytdlp: tools.ytdlp ? { path: tools.ytdlp.path, version: tools.ytdlp.version } : null, ffmpeg: tools.ffmpeg ? { version: tools.ffmpeg.version } : null,
+    media: { ytdlp: tools.ytdlp ? { path: tools.ytdlp.path, version: tools.ytdlp.version } : null, ffmpeg: tools.ffmpeg ? { version: tools.ffmpeg.version } : null, links: await serviceAvailable('media'),
       cookies: settings.media.cookies_file ? 'file' : settings.media.cookies_from_browser },
     models, hub: hub.status?.() ? { url: hub.status().hub } : null, scheduler: schedulerStatus(), settings: { lang: settings.lang, weeklyBudget: settings.weeklyBudget, defaultServings: settings.defaultServings } };
 }

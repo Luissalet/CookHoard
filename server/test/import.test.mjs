@@ -185,10 +185,12 @@ test('a login wall is explained and points to the cookies setting; cookies optio
 });
 
 test('without yt-dlp the answer says what to install, and pasted caption text still works', async (t) => {
-  setup(t);
+  const { s } = setup(t, { hub: { web: () => ({ ok: false, status: 404, error: 'HTTP 404', error_kind: 'http' }) } });   // no Links, no program, and the page says nothing
   const oldPath = process.env.PATH;
   process.env.PATH = '';
-  t.after(() => { process.env.PATH = oldPath; });
+  process.env.HOARD_HOME = s.dir;
+  delete process.env.COOKHOARD_ALLOW_PRIVATE_URLS;
+  t.after(() => { process.env.PATH = oldPath; delete process.env.HOARD_HOME; });
   resetDetection();
   const missing = await callTool('import_recipe_video', { url: 'https://vm.tiktok.com/ZZ123/', caption: '' });
   assert.equal(missing.status, 'needs_ytdlp');
