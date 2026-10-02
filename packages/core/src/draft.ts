@@ -44,7 +44,7 @@ export function hasUsableIngredientList(text: string): boolean {
 function toDraftIngredient(i: ParsedIngredient, source: SourceName, lex: Lexicon): DraftIngredient {
   const found = resolveName(i.name, lex);
   return { raw: i.raw, name: i.name, ingredientId: found.id, quantity: i.quantity, unit: i.unit, optional: i.optional,
-    ...(i.note || i.quantityMax ? { note: i.quantityMax && i.quantity ? `entre ${i.quantity} y ${i.quantityMax}${i.note ? `; ${i.note}` : ''}` : i.note } : {}), evidence: { source, line: i.raw, verified: true } };
+    ...(i.note || i.quantityMax ? { note: i.quantityMax && i.quantity && !i.note?.startsWith('entre') ? `entre ${i.quantity} y ${i.quantityMax}${i.note ? `; ${i.note}` : ''}` : i.note } : {}), evidence: { source, line: i.raw, verified: true } };
 }
 
 export function buildDraft(input: BuildInput): Draft {
@@ -84,29 +84,32 @@ export function buildDraft(input: BuildInput): Draft {
   let prepMin: number | null = null;
   let cookMin: number | null = null;
   let description = input.description?.trim() || null;
+  const stepsFrom = (items: Array<{ text: string; timerSec?: number; evidence?: string }>, source: SourceName): void => {
+    for (const s of items) steps.push({ text: s.text, ...(s.timerSec ? { timerSec: s.timerSec } : {}), evidence: { source, line: s.evidence ?? s.text } });
+  };
   if (primary) {
     const p = parsed.get(primary)!;
     used.add(primary);
     for (const i of p.ingredients) push(toDraftIngredient(i, primary, lex));
-    for (const s of p.steps) steps.push({ text: s.text, ...(s.timerSec ? { timerSec: s.timerSec } : {}), evidence: { source: primary, line: s.text } });
+    // Steps written as running prose (a channel's description) wait until the spoken ones have had their turn.
+    if (p.structure.steps) stepsFrom(p.steps, primary);
     title = metadataTitle || p.title || title;
     servings = p.servings; prepMin = p.prepMin; cookMin = p.cookMin ?? (p.totalMin && !p.prepMin ? p.totalMin : null);
     description = p.description ?? description;
   }
   // Complement from every other source: ingredients not seen yet, quantities missing, servings, steps.
-  for (const name of PRIORITY) {
-    const text = sources[name];
-    if (!text || name === primary) continue;
+  // Speech and written lists go first; text that is only prose (a video description) comes after and never beats what was said.
+  const complement = (name: SourceName, take: { ingredients: boolean; steps: boolean; rest: boolean }): void => {
     const p = parsed.get(name);
     const said = speech.get(name);
     const candidates = said ? said.ingredients : (p?.ingredients ?? []);
     let contributed = false;
-    for (const i of candidates) {
+    if (take.ingredients) for (const i of candidates) {
       const existing = index.get(keyOf(i.name));
       if (existing) {
         if (existing.quantity == null && i.quantity != null) {
           existing.quantity = i.quantity; existing.unit = i.unit;
-          existing.note = [existing.note, `cantidad leída en ${name}: "${i.raw.slice(0, 80)}"`].filter(Boolean).join('; ');
+          existing.note = [existing.note, i.quantityMax ? i.note : null, `cantidad leída en ${name}: "${i.raw.slice(0, 80)}"`].filter(Boolean).join('; ');
           contributed = true;
         }
       } else if (primary === null || i.quantity !== null || (!said && p && p.ingredients.length >= 3)) {
@@ -114,14 +117,27 @@ export function buildDraft(input: BuildInput): Draft {
         contributed = true;
       }
     }
-    if (!steps.length) {
+    if (take.steps && !steps.length) {
       const fromText = said ? said.steps : (p?.steps ?? []);
-      for (const s of fromText) steps.push({ text: s.text, ...(s.timerSec ? { timerSec: s.timerSec } : {}), evidence: { source: name, line: s.evidence ?? s.text } });
+      stepsFrom(fromText, name);
       if (fromText.length) contributed = true;
     }
-    if (said) servings ??= said.servings;
-    if (p) { servings ??= p.servings; prepMin ??= p.prepMin; cookMin ??= p.cookMin; title ??= p.title; }
+    if (take.rest) {
+      if (said) servings ??= said.servings;
+      if (p) { servings ??= p.servings; prepMin ??= p.prepMin; cookMin ??= p.cookMin; title ??= p.title; }
+    }
     if (contributed) used.add(name);
+  };
+  for (const name of PRIORITY) {
+    if (!sources[name] || name === primary) continue;
+    const p = parsed.get(name);
+    complement(name, p ? { ingredients: p.structure.ingredients, steps: p.structure.steps, rest: true } : { ingredients: true, steps: true, rest: true });
+  }
+  for (const name of PRIORITY) {
+    if (!sources[name]) continue;
+    const p = parsed.get(name);
+    if (!p) continue;
+    complement(name, { ingredients: name !== primary && !p.structure.ingredients, steps: !p.structure.steps, rest: false });
   }
   const draft: Draft = {
     id: input.id, kind: input.kind, status: 'pending', createdAt: input.now,

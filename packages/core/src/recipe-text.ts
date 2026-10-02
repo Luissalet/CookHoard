@@ -29,6 +29,8 @@ export interface ParsedRecipeText {
   steps: ParsedStep[];
   /** True when the text reads like a recipe (an ingredient list and something to do with it). */
   plausible: boolean;
+  /** Whether the ingredients and the steps were found in list form (a section header, numbered or bulleted lines) and not in running prose. */
+  structure: { ingredients: boolean; steps: boolean };
   missing: string[];
   notes: string[];
 }
@@ -313,6 +315,12 @@ export function parseRecipeText(input: string): ParsedRecipeText {
     }
   }
 
+  const listLine = (text: string): boolean => bulletRe.test(text) || /^(?:paso|step)\s*\d+/i.test(text) || /^\d+\s*[.):\-]/.test(text);
+  let listedSteps = 0; let listedIngredients = 0;
+  for (const entry of ordered) {
+    if (entry.mode === 'steps' && listLine(entry.text)) listedSteps++;
+    if (entry.mode === 'ing' && (listLine(entry.text) || QTY_START.test(entry.text))) listedIngredients++;
+  }
   for (const entry of ordered) {
     if (entry.mode === 'ing') {
       const ing = parseIngredientLine(entry.text, entry.index);
@@ -347,7 +355,8 @@ export function parseRecipeText(input: string): ParsedRecipeText {
   if (!steps.length) missing.push('pasos');
   if (!servings) missing.push('raciones');
   const plausible = ingredients.length >= 2 && (steps.length >= 1 || sawIngHeader || ingredients.filter((i) => i.quantity !== null).length >= 3);
-  return { title, servings, prepMin, cookMin, totalMin, description, ingredients, steps, plausible, missing, notes };
+  const structure = { ingredients: sawIngHeader || listedIngredients >= 3, steps: sawStepHeader || listedSteps >= 2 };
+  return { title, servings, prepMin, cookMin, totalMin, description, ingredients, steps, plausible, structure, missing, notes };
 }
 
 /** Readable text of an HTML page: scripts and styles dropped, block elements as lines, list items as bullets. */

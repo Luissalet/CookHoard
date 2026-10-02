@@ -76,7 +76,7 @@ export const IMPORT_TOOLS = [
     run: () => ({ drafts: readKitchen().drafts.map(draftSummary) }) }),
 
   tool({ name: 'recipe_draft_get', readOnly: true, schema: z.object({ draft_id: z.string().min(1) }),
-    description: 'One recipe draft with the evidence of every line and what is missing. Revisar un borrador.\nEach ingredient and step says which text it was read from (caption, subtitles, transcript, screen, text) and whether the evidence was verified.\nSinónimos: ver borrador, evidencia, de dónde sale, revisar importación',
+    description: 'One recipe draft with the evidence of every line and what is missing. Revisar un borrador.\nSpeech (subtitles, transcript) is read as prose and never as a list; drafts built from it carry a note to check quantities and a lower confidence. Description text only gives steps or ingredients when it has list form; otherwise what was said wins.\nEach ingredient and step says which text it was read from (caption, subtitles, transcript, screen, text) and whether the evidence was verified.\nSinónimos: ver borrador, evidencia, de dónde sale, revisar importación',
     run: ({ draft_id }) => ({ draft: findDraft(readKitchen(), draft_id) || fail('Borrador no encontrado.') }) }),
 
   tool({ name: 'recipe_draft_accept', schema: z.object({ draft_id: z.string().min(1), edits: editsSchema.optional() }),

@@ -103,3 +103,43 @@ test('speech is not a list: prose is never counted as one', () => {
   // The list reader would see many "lines"; the speech reader sees five ingredients.
   assert.equal(readSpeech(text).ingredients.length, 5);
 });
+
+test('a word followed by "de <ingredient>" is a preparation, not an ingredient', () => {
+  assert.deepEqual(summary('hacemos un batido de dos huevos'), [['egg', 2, null, null]]);
+  assert.deepEqual(summary('echamos el batido de 4 huevos con 3 patatas'), [['egg', 4, null, null], ['potato', 3, null, null]]);
+  assert.deepEqual(summary('añadimos el rallado de un limón y dos huevos').map((r) => r[0]), ['lemon', 'egg']);
+  assert.deepEqual(spokenIngredients('servimos dos helados de vainilla').map((i) => i.name), ['helados de vainilla'], 'a real food stays');
+  assert.deepEqual(spokenIngredients('añadimos el batido').map((i) => i.name), ['batido'], 'alone it stays: nothing says it is made of something else');
+});
+
+test('"45 huevos" in auto-subtitles is "4 ó 5 huevos"', () => {
+  const [eggs] = spokenIngredients('batimos 45 huevos en un bol');
+  assert.deepEqual([eggs!.quantity, eggs!.quantityMax], [4, 5]);
+  assert.equal(eggs!.note, 'entre 4 y 5 (subtítulos: «45»)');
+  assert.deepEqual(summary('añadimos 34 huevos').map((r) => [r[1], r[2]]), [[3, 4]]);
+  assert.deepEqual(summary('añadimos 23 cebollas').map((r) => [r[1], r[2]]), [[2, 3]]);
+  assert.deepEqual(summary('añadimos 12 huevos').map((r) => [r[1], r[2]]), [[12, null]], 'a dozen is plausible');
+  assert.deepEqual(summary('añadimos 48 huevos').map((r) => [r[1], r[2]]), [[null, null]], 'not consecutive: dropped, not guessed');
+  assert.deepEqual(summary('añadimos 45 gramos de harina').map((r) => [r[1], r[3]]), [[45, 'g']], 'with a unit it is a plain number');
+  const d = buildDraft({ kind: 'video', id: 'r1', now: NOW, title: 'Tortilla', sources: { subtitles: 'batimos 45 huevos y una pizca de sal' } });
+  assert.match(d.ingredients.find((i) => i.ingredientId === 'egg')!.note!, /entre 4 y 5 \(subtítulos: «45»\)/);
+});
+
+test('description prose never beats speech; a description with list structure still does', () => {
+  const prose = 'En este vídeo vamos a aprender cómo hacer una auténtica tortilla de patatas con cebolla.\nEsta receta es muy fácil de hacer, aunque difícil de perfeccionar. Añade sal al gusto y fríe las patatas.\nSuscríbete para más recetas.';
+  const speech = subtitleText(F.vttOf(F.TORTILLA_CUES));
+  const d = buildDraft({ kind: 'video', id: 'p1', now: NOW, title: 'Tortilla de patatas - Receta', sources: { caption: `Tortilla de patatas\n${prose}`, subtitles: speech }, media: { platform: 'youtube' } });
+  assert.ok(d.steps.length >= 3 && d.steps.every((s) => s.evidence!.source === 'subtitles'), 'steps are the spoken ones');
+  assert.ok(!d.steps.some((s) => /En este vídeo|muy fácil/.test(s.text)));
+  assert.ok(d.ingredients.every((i) => i.evidence!.source === 'subtitles'));
+  assert.equal(d.title, 'Tortilla de patatas - Receta');
+  // Prose alone, with nothing said, is still better than nothing.
+  const only = buildDraft({ kind: 'video', id: 'p2', now: NOW, title: 'Tortilla', sources: { caption: prose } });
+  assert.ok(only.steps.length >= 1);
+  // A real list in the description wins over the speech.
+  const list = 'Tortilla de patatas\nIngredientes:\n- 3 patatas\n- 1 cebolla\n- 4 huevos\nElaboración:\n1. Fríe las patatas con la cebolla.\n2. Cuaja los huevos batidos.';
+  const w = buildDraft({ kind: 'video', id: 'p3', now: NOW, title: 'Tortilla', sources: { caption: list, subtitles: speech } });
+  assert.deepEqual(w.steps.map((s) => s.evidence!.source), ['caption', 'caption']);
+  const numbered = buildDraft({ kind: 'video', id: 'p4', now: NOW, title: 'Tortilla', sources: { caption: 'Tortilla rápida\n1. Pela y corta las patatas.\n2. Fríelas con la cebolla.\n3. Añade los huevos batidos.', subtitles: speech } });
+  assert.equal(numbered.steps[0]!.evidence!.source, 'caption', 'numbered lines count as list structure');
+});

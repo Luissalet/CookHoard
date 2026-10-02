@@ -143,6 +143,11 @@ function amountBefore(toks: Tok[], i: number, floor: number): Amount | null {
     const low = numberOf(toks[k - 2]!.f);
     if (low !== null && low < value && low >= 1) { max = value; value = low; from = k - 2; }
   }
+  // Auto-subtitles write "4 5 huevos" as "45 huevos": two consecutive digits before a countable, too many to be a count, are a range.
+  if (!unit && max === null && /^\d\d$/.test(t) && value > 12) {
+    const a = Number(t[0]); const b = Number(t[1]);
+    if (a >= 1 && b === a + 1) return { quantity: a, quantityMax: b, unit: null, note: `entre ${a} y ${b} (subtítulos: «${t}»)`, from };
+  }
   if (!unit && (max ?? value) > 20) return { quantity: null, quantityMax: null, unit: null, from };
   if (value <= 0) return null;
   return { quantity: value, quantityMax: max, unit, from };
@@ -320,13 +325,30 @@ const ANNOUNCE = new Set(['ingredientes', 'ingredients']);
 
 const ADDING = /^(necesit|anad|ech|pon|agreg|incorpor|sazon|espolvore|salpiment|rall|verte|vert)/;
 
+/** Words that name something done to an ingredient: "un batido de huevo", "el rallado de limón". */
+const PREPARATION = /^(?:[a-z]+(?:ad|id)[oa]s?|mezclas?|masas?|rellenos?|picadillo|sofrito)$/;
+const REAL_FOODS = new Set(['pescado', 'pescados', 'helado', 'helados', 'embutido', 'embutidos', 'higado', 'higados', 'guisado', 'estofado', 'cocido', 'salado', 'ahumado', 'ahumados', 'curado', 'curados']);
+
+/** A single word followed by "de <ingredient>" is a preparation made of that ingredient, not an ingredient itself. */
+function withoutPreparations(mentions: Mention[], toks: Tok[]): Mention[] {
+  return mentions.filter((m, n) => {
+    if (m.from !== m.to) return true;
+    const word = toks[m.from]!.f;
+    if (!PREPARATION.test(word) || REAL_FOODS.has(word)) return true;
+    const next = toks[m.to + 1]?.f;
+    if (next !== 'de' && next !== 'del') return true;
+    const following = mentions[n + 1];
+    return !(following && following.from > m.to + 1 && following.from <= m.to + 3);
+  });
+}
+
 /** Read ingredients and steps from speech. `lex` adds the user's own ingredients and learned aliases to the dictionary. */
 export function readSpeech(text: string, lex: Lexicon = {}): SpeechReading {
   const clean = text.replace(/\r/g, '');
   const units = segment(clean);
   const toks = tokenise(clean);
   const index = indexFor(lex);
-  const mentions = findMentions(toks, index);
+  const mentions = withoutPreparations(findMentions(toks, index), toks);
 
   // The announcement window: from the word "ingredientes" to the first action.
   let windowFrom = -1; let windowTo = -1;
