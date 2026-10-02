@@ -7,8 +7,8 @@ import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { callTool } from '../tools.mjs';
-import { readKitchen, dataFile } from '../store.mjs';
+import { callTool } from '../../../server/tools/index.mjs';
+import { readKitchen, dataFile } from '../../../server/store.mjs';
 
 test('local kitchen persists menu and list through a full planning cycle', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cookhoard-mcp-'));
@@ -52,7 +52,7 @@ test('Faustus-compatible stdio MCP starts from an unrelated cwd', async () => {
     command: process.execPath,
     args: [fileURLToPath(new URL('../bootstrap.mjs', import.meta.url))],
     cwd: os.tmpdir(),
-    env: { ...process.env, COOKHOARD_DATA_DIR: directory },
+    env: { ...process.env, COOKHOARD_DATA_DIR: directory, COOKHOARD_AUTOSTART: '0' },
   });
   const client = new Client({ name: 'cookhoard-test', version: '1.0.0' });
   try {
