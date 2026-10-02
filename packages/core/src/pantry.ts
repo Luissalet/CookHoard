@@ -133,6 +133,7 @@ export function purchaseAmounts(p: Pick<PurchaseInput, 'qty' | 'unit' | 'total' 
   if (p.pack) {
     const base = toBase(p.pack.qty * p.pack.count * count, p.pack.unit);
     if (base && base.family === 'mass') return { qty: round3(base.quantity / 1000), unit: 'kg', price: p.total ? normalisePrice(p.total, base.quantity, 'g') : null };
+    if (p.pack.unit === 'ud') { const n = round3(p.pack.qty * p.pack.count * count); return { qty: n, unit: 'ud', price: p.total ? normalisePrice(p.total, n, 'ud') : null }; }
     if (base && base.family === 'volume') return { qty: round3(base.quantity / 1000), unit: 'L', price: p.total ? normalisePrice(p.total, base.quantity, 'ml') : null };
   }
   return { qty: round3(count), unit: 'ud', price: p.total ? normalisePrice(p.total, count, 'ud') : null };

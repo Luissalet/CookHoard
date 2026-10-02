@@ -135,3 +135,21 @@ test('receipts Kafka read from the mail: only supermarkets, only new ones', asyn
   assert.equal(second.considered, 0, 'already imported');
   assert.equal(readKitchen().tickets.length, 1);
 });
+
+test('pack sizes in names set the pantry quantity and the price per kg, and the store is read from the header', async (t) => {
+  setup(t);
+  const text = `SUPERMERCADO EJEMPLO S.A.\nC/ Mayor 12, 28001 Madrid\nNIF A12345678\n02/10/2026 18:32\nDESCRIPCION P.UNIT IMPORTE\n1 PATATA MALLA 3 KG 3,49\n2 TOMATE TRITURADO 400G 0,79 1,58\n1 DETERGENTE ROPA 5,99\nTOTAL 11,06`;
+  const result = await callTool('ticket_import_text', { text });
+  assert.equal(result.ticket.store, 'Supermercado Ejemplo');
+  assert.equal(result.ticket.applied, 2);
+  assert.equal(result.ticket.ignored, 1, 'detergent is ignored');
+  const potato = result.ticket.lines.find((l) => /PATATA/.test(l.name));
+  assert.deepEqual([potato.pantry_qty, potato.pantry_unit, potato.price, potato.price_unit], [3, 'kg', 1.16, 'kg']);
+  const tomato = result.ticket.lines.find((l) => /TOMATE/.test(l.name));
+  assert.deepEqual([tomato.pantry_qty, tomato.pantry_unit], [0.8, 'kg'], '2 x 400 g');
+  const pantry = await callTool('pantry_list', {});
+  assert.equal(pantry.items.find((i) => i.id === 'potato').qty, 3);
+  assert.equal(pantry.items.find((i) => i.id === 'potato').unit, 'kg');
+  const prices = await callTool('price_book', { query: 'patata' });
+  assert.deepEqual([prices.items[0].price_unit, prices.items[0].last.unit_price, prices.items[0].last.store], ['kg', 1.16, 'Supermercado Ejemplo']);
+});

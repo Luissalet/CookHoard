@@ -58,6 +58,35 @@ function detectStore(lines: string[], extra: string[] = []): string | null {
     const re = new RegExp(`(?:^|[^a-z0-9])${text}(?:$|[^a-z0-9])`);
     if (re.test(whole)) return label;
   }
+  return storeFromHeader(lines);
+}
+
+const LEGAL = /[,.\s]*\b(?:s\.?\s?a\.?\s?u?\.?|s\.?\s?l\.?\s?u?\.?|s\.?\s?l\.?\s?l\.?|s\.?\s?coop\.?|s\.?\s?c\.?|c\.?\s?b\.?)(?=$|[\s,.;:])[.,\s]*$/i;
+const BUSINESS = /\b(?:s\.?\s?a\.?u?|s\.?\s?l\.?u?|supermercados?|hipermercados?|mercados?|autoservicio|cash)\b/i;
+const NOT_A_STORE = /^(?:ticket|factura|simplificada|original|copia|duplicado|bienvenid|gracias|cliente|cajero|caja|venta|compra|operaci|fecha|hora|descripci|articulo|cantidad|precio|importe|total|iva|nif|cif|tel|www|http)/i;
+const ADDRESS = /^(?:c\/|c\.\/|calle|cl\.|avda|av\.|avenida|plaza|pza|paseo|pg\.|pol[ií]gono|ctra|carretera|camino|urb|local\b|cp\b|c\.p\.|tel[eé]?f?o?n?o?\b|tel\.)|\b\d{5}\b/i;
+const IDLINE = /\b(?:n\.?i\.?f|c\.?i\.?f)\b\.?\s*[:\/]?\s*[A-Z]?[-\s]?\d{6,8}[-\s]?[A-Z0-9]?|\b[A-HJNPQRSUVW][-\s]?\d{7,8}[-\s]?[A-Z0-9]?\b/i;
+
+/** When no known supermarket matches, the business name printed at the top: the first name-like line before the address, date or tax-id lines. */
+export function storeFromHeader(lines: string[]): string | null {
+  const boundary = (line: string): boolean => detectDate([line]) !== null || /^(?:n\.?i\.?f|c\.?i\.?f)\b/i.test(line) || ADDRESS.test(line) || HEADER.test(fold(line));
+  const head = lines.slice(0, 8);
+  const stop = head.findIndex(boundary);
+  for (let n = 0; n < (stop === -1 ? head.length : stop + 1); n++) {
+    const line = head[n]!;
+    if (boundary(line) && !BUSINESS.test(line)) break;
+    // The business name with its tax id, phone and legal form removed.
+    let name = line.replace(IDLINE, ' ').replace(/\s+/g, ' ').trim().replace(/[*#=\-_]{2,}/g, ' ').trim();
+    if (!/[A-Za-zÁÉÍÓÚÑáéíóúñ]{3}/.test(name) || /\d+[.,]\d{2}\s*[A-E]?$/.test(name) || NOT_A_STORE.test(fold(name))) continue;
+    const business = BUSINESS.test(name);
+    const letters = name.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g, '').trim();
+    const caps = letters.length >= 4 && letters === letters.toUpperCase();
+    // Shouting letters alone are only a name when something after them (an address, a date, a tax id) shows this is the header.
+    if (!business && !(caps && stop !== -1)) continue;
+    name = name.replace(LEGAL, '').replace(/[,.;:\s]+$/, '').replace(/^[,.;:\s]+/, '').trim();
+    if (name.length < 3) continue;
+    return name.toLowerCase().replace(/(^|[\s(-])(\p{L})/gu, (_, a: string, b: string) => a + b.toUpperCase());
+  }
   return null;
 }
 
@@ -91,20 +120,49 @@ function detectTotal(lines: string[]): number | null {
   return found;
 }
 
-/** Pack size in a name: "6x1,5L", "1L", "500 g", "3 x 80 g". Returns the size per pack, the count and the name without it. */
-export function extractPack(name: string): { name: string; pack: { qty: number; unit: string; count: number } | null } {
-  let text = name;
-  let pack: { qty: number; unit: string; count: number } | null = null;
-  const multi = text.match(/(?:^|\s)(\d{1,2})\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(kg|g|gr|l|lt|ml|cl)\b/i);
-  const single = text.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(kg|g|gr|l|lt|ml|cl)\b/i);
-  const normaliseUnit = (u: string): string => ({ gr: 'g', lt: 'L', l: 'L', kg: 'kg', g: 'g', ml: 'ml', cl: 'cl' } as Record<string, string>)[u.toLowerCase()] ?? u;
-  if (multi) {
-    pack = { count: Number(multi[1]), qty: Number(multi[2]!.replace(',', '.')), unit: normaliseUnit(multi[3]!) };
-    text = text.replace(multi[0], ' ');
-  } else if (single) {
-    pack = { count: 1, qty: Number(single[1]!.replace(',', '.')), unit: normaliseUnit(single[2]!) };
-    text = text.replace(single[0], ' ');
+type Pack = { qty: number; unit: string; count: number };
+const SIZE_UNIT = String.raw`kgs?|grs?|gramos?|g|litros?|lts?|l|ml|cl`;
+const NUM = String.raw`\d+(?:[.,]\d+)?`;
+const normaliseUnit = (u: string): string => {
+  const x = u.toLowerCase();
+  if (x.startsWith('k')) return 'kg';
+  if (x.startsWith('g')) return 'g';
+  if (x.startsWith('l')) return 'L';
+  return x;
+};
+
+/**
+ * Pack size in a name: "3 KG", "500GR", "1,5L", "75 CL", "6x1,5L", "6X125G", "125G X6", "PACK 6", "6 UDS", "x6".
+ * Returns the size per pack, how many packs make one sold unit, and the name without it.
+ */
+export function extractPack(name: string): { name: string; pack: Pack | null } {
+  let text = ` ${name} `;
+  let size: { qty: number; unit: string } | null = null;
+  let count: number | null = null;
+  const take = (m: RegExpMatchArray): void => { text = text.replace(m[0], ' '); };
+  const edge = String.raw`(?<=^|[\s(*])`;
+  // "6x1,5L", "6 X 125 G"
+  let m = text.match(new RegExp(`${edge}(\\d{1,2})\\s*[x×]\\s*(${NUM})\\s*(${SIZE_UNIT})\\b`, 'i'));
+  if (m) { count = Number(m[1]); size = { qty: Number(m[2]!.replace(',', '.')), unit: normaliseUnit(m[3]!) }; take(m); }
+  if (!size) {
+    // "125G X6"
+    m = text.match(new RegExp(`${edge}(${NUM})\\s*(${SIZE_UNIT})\\s*[x×]\\s*(\\d{1,2})\\b`, 'i'));
+    if (m) { size = { qty: Number(m[1]!.replace(',', '.')), unit: normaliseUnit(m[2]!) }; count = Number(m[3]); take(m); }
   }
+  if (!size) {
+    m = text.match(new RegExp(`${edge}(${NUM})\\s*(${SIZE_UNIT})\\b`, 'i'));
+    if (m) { size = { qty: Number(m[1]!.replace(',', '.')), unit: normaliseUnit(m[2]!) }; take(m); }
+  }
+  if (count === null) {
+    // "PACK 6", "PACK DE 4", "x6", "6 UDS"
+    m = text.match(/(?<=^|[\s(*])(?:pack|pak|estuche|caja\s+de)\s*(?:de\s*)?(\d{1,2})\b/i)
+      ?? text.match(/(?<=^|[\s(*])[x×]\s*(\d{1,2})\b(?!\s*[.,]\d)/i)
+      ?? text.match(/(?<=^|[\s(*])(\d{1,2})\s*(?:uds?|unid(?:ades?)?|u)\b\.?/i);
+    if (m) { count = Number(m[1]); take(m); }
+  }
+  let pack: Pack | null = null;
+  if (size && size.qty > 0) pack = { count: count && count > 0 ? count : 1, qty: size.qty, unit: size.unit };
+  else if (count && count > 0) pack = { count, qty: 1, unit: 'ud' };
   if (pack && pack.unit === 'cl') pack = { ...pack, qty: pack.qty * 10, unit: 'ml' };
   return { name: text.replace(/\s+/g, ' ').trim(), pack };
 }
@@ -114,7 +172,10 @@ const TAXTAIL = /\s+(?:[A-E]|\d{1,2}(?:[.,]\d)?\s*%)\s*$/;
 interface Draft { name: string; qty: number | null; unit: string | null; unit_price: number | null; total: number | null; raw: string }
 
 function makeLine(d: Draft): ParsedTicketLine {
-  const { name, pack } = extractPack(d.name.replace(/^\d+\s*(?=\D)/, '').trim() || d.name);
+  // A leading count ("2 TOMATE") is dropped, but "6X125G YOGUR" and "1,5L AGUA" start with a pack size and keep it.
+  const startsWithSize = /^\d+\s*[x×]\s*\d/i.test(d.name) || /^\d+[.,]\d/.test(d.name);
+  const lead = startsWithSize ? d.name : (d.name.replace(/^\d+\s+(?=\D)/, '').trim() || d.name);
+  const { name, pack } = extractPack(lead);
   const cleanName = name.replace(/[*#]+/g, ' ').replace(/\s+/g, ' ').trim();
   let qty = d.qty;
   let unit = d.unit;
@@ -210,7 +271,8 @@ export function parseTicket(text: string, options: { stores?: string[] } = {}): 
         }
       }
     }
-    const body = line.replace(TAXTAIL, '').trim();
+    // A currency sign after a price ('3,49 €') is decoration; '€/kg' stays for the weighed lines read above.
+    const body = line.replace(/\s*(?:€|eur(?:os)?\b)(?!\s*\/)/gi, ' ').replace(/\s+/g, ' ').trim().replace(TAXTAIL, '').trim();
     // Name + unit price + total, optionally a leading count: "2 YOGUR NATURAL 0,45 0,90".
     const three = body.match(new RegExp(String.raw`^(?:(\d{1,3})\s+)?(.*?[A-Za-zÁÉÍÓÚÑáéíóúñ].*?)\s+(${MONEY})\s+(${MONEY})$`));
     if (three) {

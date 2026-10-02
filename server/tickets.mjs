@@ -2,7 +2,7 @@
 // Matching is by rules and learned aliases only; the local model may suggest a name for unmatched lines but a person confirms it.
 import crypto from 'node:crypto';
 import {
-  parseTicket, matchTicketLines, applyTicketLine, resolveName, resolveOrCreate, aliasKey, fold, getSettings, pantryView, reconcilePantry,
+  parseTicket, matchTicketLines, purchaseAmounts, applyTicketLine, resolveName, resolveOrCreate, aliasKey, fold, getSettings, pantryView, reconcilePantry,
 } from '@cookhoard/core';
 import { readKitchen, updateKitchen } from './store.mjs';
 import { nowIso, today } from './clock.mjs';
@@ -30,8 +30,15 @@ async function suggestions(queued, lex) {
   return { map: out, note: null };
 }
 
+/** What a line adds to the pantry and what it costs per kg, L or unit once the pack size in its name is counted. */
+const normalised = (line) => {
+  if (line.status === 'discount' || line.total == null) return {};
+  const got = purchaseAmounts({ qty: line.qty, unit: line.unit, total: line.total, pack: line.pack ?? null });
+  return { pantry_qty: got.qty, pantry_unit: got.unit, ...(got.price ? { price: got.price.unit_price, price_unit: got.price.price_unit } : {}) };
+};
+
 const lineView = (line, state) => ({ id: line.id, raw: line.raw, name: line.name, qty: line.qty, unit: line.unit, total: line.total, status: line.status,
-  ingredient_id: line.ingredientId ?? null, ingredient: line.ingredientId ? nameOf(state, line.ingredientId) : null, via: line.via ?? null,
+  ...(line.pack ? { pack: line.pack } : {}), ...normalised(line), ingredient_id: line.ingredientId ?? null, ingredient: line.ingredientId ? nameOf(state, line.ingredientId) : null, via: line.via ?? null,
   ...(line.suggestion ? { suggestion: line.suggestion } : {}) });
 
 export function ticketView(ticket, state, { lines = true } = {}) {
