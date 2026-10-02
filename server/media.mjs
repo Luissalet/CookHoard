@@ -55,9 +55,18 @@ export async function detectTools(settings = {}) {
   const key = `${configured}|${ffmpegPath}`;
   if (cache.key === key && Date.now() - cache.at < 60000 && cache.value) return cache.value;
   let ytdlp = null;
-  for (const candidate of [configured, 'yt-dlp'].filter(Boolean)) {
-    const version = await probe(candidate, ['--version']);
-    if (version) { ytdlp = { path: candidate, version }; break; }
+  // A configured program first, then a yt-dlp on PATH, then the Python module (pip install yt-dlp) through the usual launchers.
+  const candidates = [
+    ...(configured ? [{ path: configured, pre: [] }] : []),
+    { path: 'yt-dlp', pre: [] },
+    ...(process.env.COOKHOARD_PYTHON ? [{ path: process.env.COOKHOARD_PYTHON, pre: ['-m', 'yt_dlp'] }] : []),
+    ...(isWindows
+      ? [{ path: 'py', pre: ['-3', '-m', 'yt_dlp'] }, { path: 'python', pre: ['-m', 'yt_dlp'] }]
+      : [{ path: 'python3', pre: ['-m', 'yt_dlp'] }]),
+  ];
+  for (const candidate of candidates) {
+    const version = await probe(candidate.path, [...candidate.pre, '--version']);
+    if (version) { ytdlp = { path: candidate.path, pre: candidate.pre, version }; break; }
   }
   let ffmpeg = null;
   const ffVersion = await probe(ffmpegPath, ['-version']);
@@ -90,7 +99,7 @@ export function explainYtdlp(stderr = '', platform = '') {
 const base = (settings) => ['--no-playlist', '--no-warnings', '--no-progress', '--ignore-config', ...cookieArgs(settings)];
 
 export async function fetchInfo(ytdlp, url, settings) {
-  const result = await run(ytdlp.path, [...base(settings), '--dump-single-json', '--skip-download', url], { timeoutMs: 90000 });
+  const result = await run(ytdlp.path, [...(ytdlp.pre || []), ...base(settings), '--dump-single-json', '--skip-download', url], { timeoutMs: 90000 });
   if (result.code !== 0) return { ok: false, stderr: result.stderr, timedOut: result.timedOut };
   try {
     const info = JSON.parse(result.stdout.trim().split('\n').filter((line) => line.startsWith('{')).slice(-1)[0] ?? result.stdout);
@@ -106,7 +115,7 @@ export async function fetchInfo(ytdlp, url, settings) {
 /** Subtitles (es first, then en, then anything) as plain text, or '' when the video has none. */
 export async function fetchSubtitles(ytdlp, url, settings, dir) {
   const out = path.join(dir, 'sub');
-  const result = await run(ytdlp.path, [...base(settings), '--skip-download', '--write-subs', '--write-auto-subs', '--sub-langs', 'es.*,es,en.*,en', '--sub-format', 'vtt/srt/best',
+  const result = await run(ytdlp.path, [...(ytdlp.pre || []), ...base(settings), '--skip-download', '--write-subs', '--write-auto-subs', '--sub-langs', 'es.*,es,en.*,en', '--sub-format', 'vtt/srt/best',
     '-o', `${out}.%(ext)s`, url], { timeoutMs: 90000 });
   const files = fs.readdirSync(dir).filter((name) => /^sub\..*\.(vtt|srt|json3|ttml)$/i.test(name) || /^sub\.(vtt|srt|json3)$/i.test(name));
   if (!files.length) return { text: '', stderr: result.code === 0 ? '' : result.stderr };
@@ -122,7 +131,7 @@ export async function fetchSubtitles(ytdlp, url, settings, dir) {
 /** Audio file ready for the transcriber. ffmpeg (when present) shrinks it to mono 16 kHz so long videos stay small. */
 export async function fetchAudio(ytdlp, ffmpeg, url, settings, dir) {
   const target = path.join(dir, 'audio.%(ext)s');
-  const result = await run(ytdlp.path, [...base(settings), '-f', 'bestaudio/best', '-o', target, url], { timeoutMs: 300000 });
+  const result = await run(ytdlp.path, [...(ytdlp.pre || []), ...base(settings), '-f', 'bestaudio/best', '-o', target, url], { timeoutMs: 300000 });
   const file = fs.readdirSync(dir).find((name) => /^audio\./.test(name) && !/\.(part|ytdl)$/.test(name));
   if (result.code !== 0 || !file) return { ok: false, stderr: result.stderr };
   let finalPath = path.join(dir, file);
@@ -137,7 +146,7 @@ export async function fetchAudio(ytdlp, ffmpeg, url, settings, dir) {
 /** Up to `count` key frames spread over the video, as base64 JPEG strings. Needs yt-dlp and ffmpeg. */
 export async function fetchFrames(ytdlp, ffmpeg, url, settings, dir, { duration = null, count = 6 } = {}) {
   const video = path.join(dir, 'video.%(ext)s');
-  const downloaded = await run(ytdlp.path, [...base(settings), '-f', 'worst[ext=mp4]/worst', '-o', video, url], { timeoutMs: 300000 });
+  const downloaded = await run(ytdlp.path, [...(ytdlp.pre || []), ...base(settings), '-f', 'worst[ext=mp4]/worst', '-o', video, url], { timeoutMs: 300000 });
   const file = fs.readdirSync(dir).find((name) => /^video\./.test(name) && !/\.(part|ytdl)$/.test(name));
   if (downloaded.code !== 0 || !file) return { ok: false, stderr: downloaded.stderr, frames: [] };
   const rate = duration && duration > 0 ? Math.min(1, count / duration) : 1 / 4;
