@@ -100,6 +100,32 @@ test('concurrent writers in separate processes never lose an update', async (t) 
   assert.ok(!fs.existsSync(`${dataFile()}.lock`), 'the lock is released');
 });
 
+test('Windows EPERM contention retries a readable live lock, but a permission denial still throws', async (t) => {
+  const s = scratch(); t.after(() => s.done());
+  const file = dataFile();
+  const lock = `${file}.lock`;
+  fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, at: Date.now(), token: 'other' }));
+  const open = fs.openSync;
+  let attempts = 0;
+  const denial = Object.assign(new Error('synthetic permission denial'), { code: 'EPERM' });
+  const mocked = t.mock.method(fs, 'openSync', (target, flags, ...rest) => {
+    if (target === lock && flags === 'wx') {
+      attempts++;
+      if (attempts === 1) throw denial;
+      fs.rmSync(lock);
+    }
+    return open(target, flags, ...rest);
+  });
+  assert.equal(withFileLock(file, () => 'done'), 'done');
+  assert.equal(attempts, 2);
+  mocked.mock.restore();
+  t.mock.method(fs, 'openSync', (target, flags, ...rest) => {
+    if (target === lock && flags === 'wx') throw denial;
+    return open(target, flags, ...rest);
+  });
+  assert.throws(() => withFileLock(file, () => 'never'), (error) => error === denial);
+});
+
 test('a lock left by a dead process is taken over; a live one makes the other wait and fail clearly', async (t) => {
   const s = scratch(); t.after(() => s.done());
   const file = dataFile();

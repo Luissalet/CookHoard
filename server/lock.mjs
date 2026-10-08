@@ -24,8 +24,11 @@ export function withFileLock(file, fn, { timeoutMs = 15000, staleMs = 10000 } = 
       fs.closeSync(fd);
       break;
     } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
       const held = readLock(lock);
+      // Windows may report EPERM for exclusive creation while another writer
+      // holds this same lock. Retry only a readable lock owned by a live PID;
+      // a genuine permission denial, missing or unreadable lock still throws.
+      if (error.code !== 'EEXIST' && !(error.code === 'EPERM' && held && alive(held.pid))) throw error;
       // An empty file means its creator is between creating and writing it: only old ones count as abandoned.
       let stale;
       if (held) stale = !alive(held.pid) || Date.now() - (held.at || 0) > staleMs;

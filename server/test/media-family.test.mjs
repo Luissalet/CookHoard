@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import http from 'node:http';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -129,7 +130,7 @@ test('a yt-dlp or cookies set in Settings go first; Links is the fallback for th
 
 test('key frames come from a small Links download and the local ffmpeg', async (t) => {
   if (spawnSync('ffmpeg', ['-version']).status !== 0) return t.skip('ffmpeg not installed');
-  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'cookhoard-vid-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cookhoard-vid-'));
   const video = path.join(dir, 'v.mp4');
   assert.equal(spawnSync('ffmpeg', ['-y', '-f', 'lavfi', '-i', 'testsrc=duration=6:size=320x240:rate=5', '-pix_fmt', 'yuv420p', video]).status, 0);
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

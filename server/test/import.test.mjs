@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import http from 'node:http';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -204,7 +205,7 @@ test('without yt-dlp the answer says what to install, and pasted caption text st
 test('key frames are read by the vision model when nothing else holds a list; no vision model is reported', async (t) => {
   const ffmpeg = spawnSync('ffmpeg', ['-version']);
   if (ffmpeg.status !== 0) return t.skip('ffmpeg not installed');
-  const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'cookhoard-vid-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cookhoard-vid-'));
   const video = path.join(dir, 'v.mp4');
   const made = spawnSync('ffmpeg', ['-y', '-f', 'lavfi', '-i', 'testsrc=duration=6:size=320x240:rate=5', '-pix_fmt', 'yuv420p', video]);
   assert.equal(made.status, 0);
