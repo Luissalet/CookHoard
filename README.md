@@ -13,7 +13,8 @@ CookHoard is a local kitchen for Faustus and the Hoard family: recipes, a pantry
 - **Pantry.** Items live in the fridge, the pantry or the freezer, with quantity, opened date and expiry. A date typed by you is exact; a date from general storage rules is estimated and always labelled `≈` with its basis. Cooked leftovers enter the fridge with a date.
 - **Tickets and prices.** Paste ticket text, read a photo or PDF with Kafka's extractor (text layer, OCR for scans), or import supermarket receipts found in the mail through Kafka. Food lines go to the pantry and the price book; lines it cannot recognise wait in a review queue where you say what they are (and it remembers), mark them as not food or ignore them for good. A model may suggest a match for a line; the suggestion is shown, never applied by itself. Pack sizes written in a product name ("3 KG", "500GR", "1,5L", "75 CL", "6 UDS", "PACK 6", "6X125G") set the pantry quantity and the price per kg, L or unit, multiplied by the line quantity. When no known supermarket matches, the store name is read from the ticket header. Duplicate tickets are detected.
 - **Costs.** Cost of a recipe and of the weekly menu from your own prices (median of recent purchases), spending per week and month from tickets, and the food spending recorded in Ledger when it is running. Costs with missing prices are marked as partial.
-- **What to cook.** Dinner ideas ranked by what you have, what is about to expire, the season and how recently you cooked each dish; leftovers appear as options.
+- **What to cook.** Dinner ideas ranked by what you have, what is about to expire, the season and how recently you cooked each dish; leftovers appear as options. With an explicit `servings` target, recommendations check required quantities and deficits; `only_have` then requires confirmed stock. Without a target, recommendations use ingredient presence.
+- **Check one recipe.** `recipe_check(recipe_id, servings)` scales ingredients and reports exact pantry deficits without saving a weekly menu or consuming stock. Optional ingredients remain separate; unknown amounts, incompatible units and assumed staples are marked as unconfirmed. [Details](docs/RECIPE_CHECK.md).
 - **Menu and shopping list.** A weekly menu with servings per day, ingredient totals for the week with stock subtracted, and a shopping list grouped by supermarket section in an order you choose. Copy as text or Markdown, print, mark items as bought (they move to the pantry).
 - **Price watching.** `tantalus_watch_add` hands a product page to Tantalus.
 - **Daily routine.** At 09:00 (and when the app starts after missing it) CookHoard sends `cookhoard.pantry.expiring` on the family bus when something expires within two days.
@@ -61,7 +62,7 @@ Everything is in the data folder: `kitchen.json` (recipes, pantry, shopping list
 
 - Web app: the screens above. They call the same tools as the assistant through `POST /api/tools/:name`.
 - Agent routes: `GET /api/health`, `GET /api/agent/tools`, `POST /api/agent/call` with `Authorization: Bearer <contents of mcp-token>` (the token is created once and kept across restarts; results over 100 KB are cut with a `truncated` block saying what was left out). Requests must come from the local machine. Errors share one envelope `{ error, code?, hint?, issues? }`.
-- MCP: 55 tools (24 read-only). The full catalogue with arguments is in [docs/API.md](docs/API.md), generated from the code.
+- MCP: 56 tools (25 read-only). The full catalogue with arguments is in [docs/API.md](docs/API.md), generated from the code.
 - Events: `cookhoard.recipe.imported`, `cookhoard.menu.planned`, `cookhoard.pantry.expiring`.
 
 ## Tests
@@ -87,6 +88,7 @@ Tests use invented recipes and tickets, a fake yt-dlp, a fake hub (it answers th
 - Reading audio, key frames, photos and mail needs Funes, a vision model, Kafka and the hub to be running. Those paths are tested against mocks, not against the real apps.
 - Expiry dates that are not typed by you are estimates from general rules, not the date printed on the package.
 - Costs and spending are only as complete as your price book; incomplete totals are marked.
+- `stock_sufficient` checks required quantities only, not expiry or food suitability. Recipe checks use the menu's existing conversions (g/kg and ml/L); they do not infer package sizes or ingredient densities. Scaling requires a known recipe yield.
 - Text coming from the server (reasons, notes) is Spanish in both interface languages.
 - Recipes are not translated; a recipe stays in the language it was written in.
 

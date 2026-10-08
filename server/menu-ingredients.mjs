@@ -1,4 +1,5 @@
 // Quantities belong to a recipe's complete yield; units remain exactly as authored.
+const invalidQuantities = (message) => Object.assign(new Error(message), { status: 400, code: 'invalid_recipe_quantities' });
 export function menuIngredients(menu, recipes, pantryIds, selectedDays) {
   const required = new Map();
   const optional = new Map();
@@ -9,9 +10,10 @@ export function menuIngredients(menu, recipes, pantryIds, selectedDays) {
     if (!recipe) throw new Error(`Receta no encontrada para el día ${index + 1}.`);
     const hasBase = Number.isFinite(recipe.servings) && recipe.servings > 0;
     if (day.servings != null && (!Number.isFinite(day.servings) || day.servings <= 0 || !hasBase)) {
-      throw new Error(`No se pueden escalar las raciones del día ${index + 1}: revisa las raciones base de la receta y las del menú.`);
+      throw invalidQuantities(`No se pueden escalar las raciones del día ${index + 1}: revisa las raciones base de la receta y las del menú.`);
     }
     const factor = day.servings == null ? 1 : day.servings / recipe.servings;
+    if (!Number.isFinite(factor)) throw invalidQuantities('Las raciones exceden el rango de cálculo.');
     days.push({ day: index + 1, recipe_id: recipe.id, title: recipe.title,
       base_servings: hasBase ? recipe.servings : null,
       servings: day.servings ?? (hasBase ? recipe.servings : null), factor });
@@ -25,8 +27,10 @@ export function menuIngredients(menu, recipes, pantryIds, selectedDays) {
       const group = groups.get(key);
       const quantity = Number.isFinite(ingredient.quantity) && ingredient.quantity > 0
         ? ingredient.quantity * factor : null;
+      if (quantity !== null && !Number.isFinite(quantity)) throw invalidQuantities('Las cantidades escaladas exceden el rango de cálculo.');
       if (quantity === null) group.unknown_quantity_count++;
       else group.known_quantity += quantity;
+      if (!Number.isFinite(group.known_quantity)) throw invalidQuantities('La suma de cantidades excede el rango de cálculo.');
       group.quantity = group.unknown_quantity_count ? null : group.known_quantity;
       group.contributions.push({ day: index + 1, recipe_id: recipe.id, quantity,
         original_quantity: ingredient.quantity ?? null, factor, note: ingredient.note ?? null });
@@ -66,7 +70,8 @@ export function addStockCoverage(result, shopping, staples) {
       status = 'to_buy';
       covered = 0;
       toBuy = group.quantity;
-    } else if (!Number.isFinite(item.qty) || item.qty <= 0 || !stock || !demand || stock.family !== demand.family) {
+    } else if (!Number.isFinite(item.qty) || item.qty <= 0 || !stock || !demand || stock.family !== demand.family
+      || !Number.isFinite(item.qty * stock.factor)) {
       status = 'check_stock';
     } else {
       if (!remaining.has(group.ingredient_id)) remaining.set(group.ingredient_id, item.qty * stock.factor);
@@ -74,10 +79,15 @@ export function addStockCoverage(result, shopping, staples) {
       if (available === null) {
         status = 'check_stock';
       } else {
-        const used = Math.min(group.quantity * demand.factor, available);
+        const needed = group.quantity * demand.factor;
+        if (!Number.isFinite(needed)) throw invalidQuantities('Las cantidades convertidas exceden el rango de cálculo.');
+        const used = Math.min(needed, available);
         remaining.set(group.ingredient_id, available - used);
         covered = used / demand.factor;
-        toBuy = Math.max(0, (group.quantity * demand.factor - used) / demand.factor);
+        // Suppress only binary arithmetic noise, not a rounded purchasing shortage.
+        const deficit = Math.max(0, needed - used);
+        const tolerance = Number.EPSILON * 8 * Math.max(needed, available);
+        toBuy = deficit <= tolerance ? 0 : deficit / demand.factor;
         status = toBuy > 0 ? 'to_buy' : 'covered';
       }
     }

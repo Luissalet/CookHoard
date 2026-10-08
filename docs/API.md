@@ -2,7 +2,7 @@
 
 Generated from the tool catalogue by `npm run docs:api` (version 0.2.0). Do not edit by hand: a test fails when this file is out of date.
 
-CookHoard has 55 tools (24 read-only). The same catalogue is served three ways: the MCP bridge (`apps/mcp`), the agent routes of the app and the web interface.
+CookHoard has 56 tools (25 read-only). The same catalogue is served three ways: the MCP bridge (`apps/mcp`), the agent routes of the app and the web interface.
 
 ## Endpoints
 
@@ -30,6 +30,7 @@ Requests must come from `localhost`, `127.0.0.1` or `[::1]`, or from a host list
 - [`kitchen_state`](#kitchen_state)
 - [`find_recipes`](#find_recipes)
 - [`get_recipe`](#get_recipe)
+- [`recipe_check`](#recipe_check)
 - [`save_recipe`](#save_recipe)
 - [`recommend_recipes`](#recommend_recipes)
 - [`plan_week`](#plan_week)
@@ -129,6 +130,21 @@ Includes nutrition per serving (approximate), the cooking history of this recipe
 | `recipe_id` | string | yes |  |
 
 Phrases: receta completa, pasos, cómo cocinar, cuánto cuesta
+
+### `recipe_check`
+
+Check scaled ingredients and pantry deficits for one recipe. Raciones y existencias de una receta.
+
+No weekly menu needed. Optional servings requires a known recipe yield. Keeps authored units; converts g/kg and ml/L. stock_sufficient is true for confirmed required quantities, false for known deficits, null for unknown amounts, incompatible units or assumed staples. Optional ingredients are separate; expiry is not checked. Nothing is saved or consumed.
+
+*read-only*
+
+| Argument | Type | Required | Default |
+| --- | --- | --- | --- |
+| `recipe_id` | string | yes |  |
+| `servings` | integer | no |  |
+
+Phrases: receta para cuatro, escalar receta, cuánto necesito, alcanza la despensa, cantidades receta, qué falta comprar
 
 ### `save_recipe`
 
@@ -810,7 +826,7 @@ Phrases: cuánto gasto en comida, presupuesto de la compra, gasto del súper, cu
 
 What to cook tonight from what you have, what expires, recent meals and ratings, plus leftovers. ¿Qué ceno?
 
-Filters: max_minutes, diet, avoid_allergens, only_have, allow_missing, avoid_days (default 3: nothing cooked in the last days). Each option says why, what you have and what is missing, with its cost per serving when prices are known.
+Filters: max_minutes, diet, avoid_allergens, only_have, allow_missing, avoid_days (default 3). With servings, checks scaled required quantities and returns stock_sufficient, deficits and unconfirmed stock; only_have then requires confirmed quantity coverage. Recipes without known yield are excluded. Without servings, recommendations use ingredient presence. Use recipe_check for the full scaled list.
 
 *read-only*
 

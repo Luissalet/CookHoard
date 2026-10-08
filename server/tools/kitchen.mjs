@@ -8,6 +8,7 @@ import {
 } from '@cookhoard/core';
 import { readKitchen, updateKitchen } from '../store.mjs';
 import { menuIngredients, addStockCoverage } from '../menu-ingredients.mjs';
+import { recipeCheck } from '../recipe-check.mjs';
 import { now, nowIso, today } from '../clock.mjs';
 import { emit } from '../hub.mjs';
 import { z, fail, tool, lexOf, nameOf, recipesOf, pantryIds, freshWeek, ingredientRef, mapIngredientLine, recipeSummary, costSummary } from './common.mjs';
@@ -99,6 +100,15 @@ export const KITCHEN_TOOLS = [
       return { ...recipeSummary(recipe, state), steps: recipe.steps, saved: state.savedIds.includes(recipe.id),
         nutrition_per_serving: estimateRecipeNutrition(recipe),
         cooking_history: state.makes.filter((make) => make.recipeId === recipe.id), cost: costSummary(state, recipe) };
+    } }),
+
+  tool({ name: 'recipe_check', readOnly: true,
+    schema: z.object({ recipe_id: z.string().min(1), servings: z.number().int().positive().optional() }),
+    description: 'Check scaled ingredients and pantry deficits for one recipe. Raciones y existencias de una receta.\nNo weekly menu needed. Optional servings requires a known recipe yield. Keeps authored units; converts g/kg and ml/L. stock_sufficient is true for confirmed required quantities, false for known deficits, null for unknown amounts, incompatible units or assumed staples. Optional ingredients are separate; expiry is not checked. Nothing is saved or consumed.\nSinónimos: receta para cuatro, escalar receta, cuánto necesito, alcanza la despensa, cantidades receta, qué falta comprar',
+    run: ({ recipe_id, servings }) => {
+      const state = readKitchen();
+      const recipe = recipesOf(state).find((r) => r.id === recipe_id) || fail('Receta no encontrada.');
+      return recipeCheck(state, recipe, servings);
     } }),
 
   tool({ name: 'save_recipe', schema: z.object(recipeFields),

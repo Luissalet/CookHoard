@@ -13,7 +13,8 @@ CookHoard es la cocina local de Faustus y de la familia Hoard: recetas, despensa
 - **Despensa.** Cada cosa está en la nevera, la despensa o el congelador, con cantidad, fecha de apertura y caducidad. La fecha que escribes tú es exacta; la que sale de reglas generales de conservación es estimada y siempre aparece con `≈` y su motivo. Las sobras de lo cocinado entran en la nevera con fecha.
 - **Tickets y precios.** Pega el texto de un ticket, lee una foto o un PDF con el extractor de Kafka (capa de texto, OCR en los escaneos) o importa los recibos de supermercados que haya en el correo, también con Kafka. Las líneas de comida van a la despensa y al libro de precios; las que no reconoce esperan en una cola de revisión donde dices qué son (y lo recuerda), las marcas como no comida o las ignoras para siempre. Un modelo puede sugerir qué es una línea; la sugerencia se muestra, nunca se aplica sola. Los tickets repetidos se detectan.
 - **Costes.** Coste de una receta y del menú semanal con tus propios precios (mediana de compras recientes), gasto por semana y por mes a partir de tickets, y el gasto en comida registrado en Ledger cuando está en marcha. Los costes con precios que faltan se marcan como parciales.
-- **Qué cocinar.** Ideas para cenar ordenadas por lo que tienes, lo que va a caducar, la temporada y cuánto hace que cocinaste cada plato; las sobras aparecen como opciones.
+- **Qué cocinar.** Ideas para cenar ordenadas por lo que tienes, lo que va a caducar, la temporada y cuánto hace que cocinaste cada plato; las sobras aparecen como opciones. Con `servings` comprueba cantidades obligatorias y déficits; `only_have` exige entonces existencias confirmadas. Sin indicar raciones, recomienda según la presencia de ingredientes.
+- **Comprobar una receta.** `recipe_check(recipe_id, servings)` escala ingredientes y calcula lo que falta sin guardar un menú ni consumir existencias. Separa los opcionales y marca como no confirmadas las cantidades desconocidas, unidades incompatibles y básicos supuestos. [Detalles](docs/RECIPE_CHECK.md).
 - **Menú y lista de la compra.** Un menú semanal con raciones por día, totales de ingredientes de la semana descontando lo que hay, y una lista de la compra agrupada por secciones del súper en el orden que elijas. Copiar como texto o Markdown, imprimir y marcar como comprado (pasa a la despensa).
 - **Vigilar precios.** `tantalus_watch_add` entrega la página de un producto a Tantalus.
 - **Rutina diaria.** A las 09:00 (y al arrancar si se la saltó) CookHoard emite `cookhoard.pantry.expiring` en el bus de la familia cuando algo caduca en los próximos dos días.
@@ -61,7 +62,7 @@ Todo está en la carpeta de datos: `kitchen.json` (recetas, despensa, lista de l
 
 - Aplicación web: las pantallas de arriba. Llaman a las mismas herramientas que el asistente mediante `POST /api/tools/:name`.
 - Rutas de agente: `GET /api/health`, `GET /api/agent/tools`, `POST /api/agent/call` con `Authorization: Bearer <contenido de mcp-token>` (el token se crea una vez y se conserva entre arranques; los resultados de más de 100 KB se recortan con un bloque `truncated` que dice qué se quitó). Las peticiones deben venir de la propia máquina. Los errores comparten un solo formato `{ error, code?, hint?, issues? }`.
-- MCP: 55 herramientas (24 de solo lectura). El catálogo completo con argumentos está en [docs/API.md](docs/API.md), generado a partir del código.
+- MCP: 56 herramientas (25 de solo lectura). El catálogo completo con argumentos está en [docs/API.md](docs/API.md), generado a partir del código.
 - Eventos: `cookhoard.recipe.imported`, `cookhoard.menu.planned`, `cookhoard.pantry.expiring`.
 
 ## Pruebas
@@ -87,6 +88,7 @@ Las pruebas usan recetas y tickets inventados, un yt-dlp falso, un centro de app
 - Leer audio, fotogramas, fotos y correo necesita que Funes, un modelo de visión, Kafka y el centro de apps estén en marcha. Esos caminos están probados con simulaciones, no con las aplicaciones reales.
 - Las fechas de caducidad que no escribes tú son estimaciones de reglas generales, no la fecha impresa en el envase.
 - Los costes y el gasto son tan completos como tu libro de precios; los totales incompletos se marcan.
+- `stock_sufficient` comprueba cantidades obligatorias, no caducidad ni aptitud de los alimentos. Solo convierte g/kg y ml/L; no deduce tamaños de envase ni densidades. Para escalar se necesitan las raciones base de la receta.
 - El texto que genera el servidor (motivos, notas) está en castellano en los dos idiomas de la interfaz.
 - Las recetas no se traducen: cada una queda en el idioma en que se escribió.
 

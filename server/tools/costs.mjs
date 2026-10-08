@@ -4,6 +4,7 @@ import { readKitchen, updateKitchen } from '../store.mjs';
 import { now, today } from '../clock.mjs';
 import { callApp } from '../hub.mjs';
 import { z, fail, tool, nameOf, recipesOf, ingredientRef, costSummary, freshWeek } from './common.mjs';
+import { recipeCheck } from '../recipe-check.mjs';
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Usa AAAA-MM-DD.');
 
@@ -96,12 +97,43 @@ export const COST_TOOLS = [
     schema: z.object({ max_minutes: z.number().int().min(1).optional(), servings: z.number().int().positive().optional(), diet: z.array(z.string()).max(5).optional(), avoid_allergens: z.array(z.string()).max(8).optional(),
       only_have: z.boolean().optional(), allow_missing: z.number().int().min(0).max(20).optional(), use_expiring: z.boolean().optional(), avoid_days: z.number().int().min(0).max(60).optional(),
       expiring_within_days: z.number().int().min(0).max(30).optional(), month: z.number().int().min(1).max(12).optional(), hemisphere: z.enum(['N', 'S']).optional(), limit: z.number().int().min(1).max(20).default(6) }),
-    description: 'What to cook tonight from what you have, what expires, recent meals and ratings, plus leftovers. ¿Qué ceno?\nFilters: max_minutes, diet, avoid_allergens, only_have, allow_missing, avoid_days (default 3: nothing cooked in the last days). Each option says why, what you have and what is missing, with its cost per serving when prices are known.\nSinónimos: qué ceno, qué cocino hoy, qué hago de cenar, qué puedo cocinar rápido, sin gluten, gasta lo que caduca, sobras',
+    description: 'What to cook tonight from what you have, what expires, recent meals and ratings, plus leftovers. ¿Qué ceno?\nFilters: max_minutes, diet, avoid_allergens, only_have, allow_missing, avoid_days (default 3). With servings, checks scaled required quantities and returns stock_sufficient, deficits and unconfirmed stock; only_have then requires confirmed quantity coverage. Recipes without known yield are excluded. Without servings, recommendations use ingredient presence. Use recipe_check for the full scaled list.\nSinónimos: qué ceno, qué cocino hoy, qué hago de cenar, qué puedo cocinar rápido, sin gluten, gasta lo que caduca, sobras',
     run: (query) => {
       const state = readKitchen();
-      const result = whatToCook(state, recipesOf(state), query, today());
-      const withCost = (option) => { const recipe = recipesOf(state).find((r) => r.id === option.recipe_id); const cost = option.type === 'recipe' && recipe ? costSummary(state, recipe) : null;
-        return { ...option, ...(cost ? { cost } : {}), ...(recipe ? { image: recipe.image ?? null } : {}) }; };
-      return { ...result, options: result.options.map(withCost) };
+      const recipes = recipesOf(state);
+      const result = whatToCook(state, recipes, query.servings === undefined ? query
+        : { ...query, only_have: false, allow_missing: 99, limit: recipes.length }, today());
+      const options = [];
+      if (query.servings !== undefined) {
+        result.filters = result.filters.filter((f) => f !== 'como mucho 99 ingrediente(s) que falten');
+        if (query.only_have) result.filters.push('solo con cantidades obligatorias confirmadas');
+        else if (query.allow_missing !== undefined) result.filters.push(`como mucho ${query.allow_missing} ingrediente(s) con déficit de cantidad`);
+        result.filters.push(`${query.servings} raciones; existencias por cantidad`);
+        result.excluded.raciones_sin_base = 0;
+        result.excluded.existencias_sin_confirmar = 0;
+      }
+      for (const option of result.options) {
+        const recipe = recipes.find((r) => r.id === option.recipe_id);
+        let checked;
+        if (query.servings !== undefined) {
+          if (!(Number.isFinite(recipe?.servings) && recipe.servings > 0)) { result.excluded.raciones_sin_base++; continue; }
+          checked = recipeCheck(state, recipe, query.servings);
+          if (query.only_have && checked.stock_sufficient !== true) { result.excluded.existencias_sin_confirmar++; continue; }
+          const missingIds = new Set(checked.missing.map((g) => g.ingredient_id));
+          if (query.allow_missing !== undefined && missingIds.size > query.allow_missing) { result.excluded.faltan++; continue; }
+        }
+        const cost = option.type === 'recipe' && recipe ? costSummary(state, recipe, { servings: query.servings }) : null;
+        options.push({ ...option, ...(checked ? { servings: checked.servings, stock_sufficient: checked.stock_sufficient,
+          quantity_deficits: checked.missing, needs_check: checked.needs_check,
+          missing: [...new Set(checked.missing.map((g) => g.name))],
+          reasons: [...option.reasons.filter((r) => !r.startsWith('Tienes todos') && !r.startsWith('Te falta')),
+            checked.stock_sufficient === true ? 'Cantidades obligatorias confirmadas para las raciones pedidas.'
+              : checked.stock_sufficient === false ? 'Faltan cantidades para las raciones pedidas.' : 'Falta confirmar cantidades o unidades.'] } : {}),
+          ...(cost ? { cost } : {}), ...(recipe ? { image: recipe.image ?? null } : {}) });
+      }
+      return { ...result, options: options.slice(0, query.limit),
+        leftovers: query.servings === undefined ? result.leftovers : result.leftovers
+          .filter((l) => !query.only_have || l.leftover_servings >= query.servings)
+          .map((l) => ({ ...l, requested_servings: query.servings, stock_sufficient: l.leftover_servings >= query.servings })) };
     } }),
 ];
