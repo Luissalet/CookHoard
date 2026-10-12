@@ -5,7 +5,9 @@ import { useAsync } from '../hooks.js';
 import { Badge, Empty, ErrorNote, Field, Icon, Modal, PageHeader, Segmented, Spinner, Stars } from '../components/ui.jsx';
 import { CostLine, ExpiryBadge, Meta, RecipeThumb } from '../components/shared.jsx';
 import CookingMode from '../components/CookingMode.jsx';
+import { useCopilotContext, useCopilotRefresh } from '../copilot-hooks.js';
 import { fmtDate, fmtMinutes, fmtMoney, fmtQty } from '../format.js';
+import { clipFields } from '../copilot-context.js';
 
 export default function Recipes() {
   const { route } = useApp();
@@ -34,6 +36,8 @@ function RecipeList() {
   }), [debounced, minutes, diets.join(','), source, saved]);
   const rows = result.data?.recipes ?? [];
   const active = minutes || diets.length || source !== 'all' || saved || query;
+  useCopilotRefresh(() => { result.reload(); });
+  useCopilotContext(() => ({ view: { filters: Object.fromEntries(Object.entries({ query: debounced, max_minutes: minutes, diet: diets.length ? diets : '', source: source === 'all' ? '' : source, saved_only: saved }).filter(([, v]) => v)) } }));
 
   return (
     <>
@@ -93,6 +97,8 @@ function RecipeDetail({ id }) {
   const cost = useAsync(() => (r && servings && base && servings !== base ? call('recipe_cost', { recipe_id: id, servings }) : Promise.resolve(null)), [id, servings, r?.id]);
   const haveIds = useMemo(() => new Set((pantry.data?.items ?? []).map((i) => i.id)), [pantry.data]);
   const pantryById = useMemo(() => new Map((pantry.data?.items ?? []).map((i) => [i.id, i])), [pantry.data]);
+  useCopilotRefresh(() => { recipe.reload(); pantry.reload(); });
+  useCopilotContext(() => ({ view: { ...(base && servings && servings !== base ? { servings: { shown: servings, base } } : {}) } }));
 
   if (recipe.error) return <ErrorNote error={recipe.error} onRetry={recipe.reload} t={t} />;
   if (!r) return <Spinner label={t('loading')} />;
@@ -218,6 +224,8 @@ function CookedModal({ recipe, onClose, onDone }) {
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const base = recipe.servings ?? 2;
+  useCopilotContext(() => ({ editors: [{ kind: 'cooked-record', object_id: recipe.id, dirty: !!(rating || minutes || notes) || Number(made) !== base || Number(eaten) !== base, fields: clipFields({ servings_made: Number(made), servings_eaten: Number(eaten), rating, time_taken_min: minutes, notes }) }] }));
   const submit = async (e) => {
     e.preventDefault(); setBusy(true); setError(null);
     try {
@@ -246,6 +254,7 @@ function CookedModal({ recipe, onClose, onDone }) {
 function CookingScreen({ id }) {
   const { t, go } = useApp();
   const recipe = useAsync(() => call('get_recipe', { recipe_id: id }), [id]);
+  useCopilotRefresh(() => { recipe.reload(); });
   if (recipe.error) return <ErrorNote error={recipe.error} onRetry={recipe.reload} t={t} />;
   if (!recipe.data) return <Spinner label={t('loading')} />;
   return <CookingMode recipe={recipe.data} onExit={() => go('recipes', id)} />;

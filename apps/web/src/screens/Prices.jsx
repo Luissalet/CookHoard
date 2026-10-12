@@ -4,6 +4,7 @@ import { useApp } from '../App.jsx';
 import { useAsync } from '../hooks.js';
 import { Badge, Empty, ErrorNote, Field, Icon, Modal, Note, PageHeader, Spinner } from '../components/ui.jsx';
 import { fmtDate, fmtMoney, fmtPrice } from '../format.js';
+import { useCopilotContext, useCopilotRefresh } from '../copilot-hooks.js';
 
 function Spark({ history }) {
   const points = history.slice().reverse();
@@ -25,6 +26,8 @@ export default function Prices() {
   const tickets = useAsync(() => call('tickets_list', { limit: 20 }), []);
   const rows = book.data?.items ?? [];
   const s = spending.data;
+  useCopilotRefresh(() => { book.reload(); spending.reload(); tickets.reload(); });
+  useCopilotContext(() => ({ view: { ...(query ? { query } : {}), ...(open ? { price_open: open.ingredientId } : {}) } }));
 
   return (
     <>
@@ -99,6 +102,7 @@ function AddPrice({ onClose, onSaved }) {
   const { t } = useApp();
   const [f, setF] = useState({ ingredient: '', unit_price: '', price_unit: 'kg', store: '' });
   const [error, setError] = useState(null);
+  useCopilotContext(() => ({ editors: [{ kind: 'price-new', object_id: null, dirty: !!(f.ingredient || f.unit_price || f.store), fields: f }] }));
   const submit = async (e) => { e.preventDefault(); setError(null); try { await call('price_add', { ...f, unit_price: Number(String(f.unit_price).replace(',', '.')) }); onSaved(); } catch (err) { setError(err); } };
   return (
     <Modal title={t('prices.add')} onClose={onClose}>
@@ -122,6 +126,7 @@ function WatchCard() {
   const [label, setLabel] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  useCopilotContext(() => ({ editors: url || label ? [{ kind: 'price-watch', object_id: null, dirty: true, fields: { url, label } }] : [] }));
   const submit = async (e) => { e.preventDefault(); setError(null); setResult(null); try { setResult(await call('tantalus_watch_add', { url, ...(label ? { label } : {}) })); } catch (err) { setError(err); } };
   return (
     <form className="card form" onSubmit={submit}>

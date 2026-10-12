@@ -65,6 +65,25 @@ Everything is in the data folder: `kitchen.json` (recipes, pantry, shopping list
 - MCP: 56 tools (25 read-only). The full catalogue with arguments is in [docs/API.md](docs/API.md), generated from the code.
 - Events: `cookhoard.recipe.imported`, `cookhoard.menu.planned`, `cookhoard.pantry.expiring`.
 
+## Faustus copilot
+
+Every page has a floating **Faustus** button (bottom right) that opens the Faustus assistant in a side panel. The conversation, model, memory and tools live in Faustus: this app only relays the panel and keeps no history (it has no chat of its own). It needs Faustus running (`HOARD_FAUSTUS_URL`, default `http://127.0.0.1:7000`); without it the button explains that the copilot is unavailable and the rest of the app is unaffected. The relay is mounted when the built client is served (`npm run build`, then `npm start`).
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/copilot/info` | App id and name, data space and where the panel script is. |
+| `GET /api/copilot/panel.js` | The Faustus panel, relayed from Faustus (same origin). |
+| `GET /api/copilot/launcher.js` | The button that mounts the panel; the served page carries its tag. |
+| `POST /api/copilot/proxy` | Relays only the copilot's own Faustus routes; the Faustus token never reaches the browser. |
+
+What every turn tells the assistant (`window.hoardCopilot.context()`, read with the same tools the assistant uses):
+
+- `view.page` (`today`, `recipes`, `recipe`, `cooking`, `import`, `pantry`, `menu`, `shopping`, `prices`, `settings`) plus what the screen shows: the recipe list filters, the servings of the open recipe, the step of the cooking mode, the import tab (with the review and draft counts), the pantry place, the day being picked in the menu, the shopping rows ticked, the price search. CookHoard has one kitchen, so there is no `project`.
+- `active_objects`: the open recipe, the draft being reviewed, the pantry item being edited, this week's menu, the ticked shopping rows and the price book entry that is open. Creation forms, `new` and unknown ids add no object and never fail.
+- `view.editor`: the fields typed in the open form and which of them changed (cooked record, pantry item, menu pick, shopping entry, new price and price watch, link, text and ticket import, draft review, ticket review lines, settings, new ingredient, new alias). Several open forms are listed in `view.editors`.
+
+When the assistant finishes a turn the open views reload in place; forms keep what you typed and the fields you did not touch follow the new values. Saving sends **only the fields you changed**: pantry items, the draft review (`recipe_draft_accept` edits) and the settings. Turn the copilot off with `HOARD_COPILOT=0`. The client is in `apps/web/src/copilot-context.js` and `apps/web/src/copilot-hooks.js`.
+
 ## Tests
 
 ```sh

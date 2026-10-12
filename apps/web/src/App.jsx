@@ -10,6 +10,7 @@ import Menu from './screens/Menu.jsx';
 import Shopping from './screens/Shopping.jsx';
 import Prices from './screens/Prices.jsx';
 import Settings from './screens/Settings.jsx';
+import { useCopilotRefresh } from './copilot-hooks.js';
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
@@ -49,6 +50,7 @@ export default function App() {
     call('today_overview', { dinners: 1 }).then((v) => setCounts({ import: v.drafts_pending + v.review_queue, shopping: v.shopping_to_buy })).catch(() => {});
   }, []);
   useEffect(() => { refreshCounts(); }, [route.screen, refreshCounts]);
+  useCopilotRefresh(refreshCounts);   // the sidebar counts follow what the assistant did
 
   const value = useMemo(() => ({ t, lang, setLang, go, route, toast, refreshCounts }), [t, lang, setLang, go, route, toast, refreshCounts]);
   const Screen = { today: Today, recipes: Recipes, import: ImportScreen, pantry: Pantry, menu: Menu, shopping: Shopping, prices: Prices, settings: Settings }[route.screen];

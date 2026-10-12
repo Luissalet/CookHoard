@@ -4,12 +4,20 @@ import { useApp } from '../App.jsx';
 import { useAsync } from '../hooks.js';
 import { ErrorNote, Field, Icon, Note, PageHeader, Segmented, Spinner } from '../components/ui.jsx';
 import { fmtDate } from '../format.js';
+import { useCopilotContext, useCopilotRefresh } from '../copilot-hooks.js';
+import { changedFields, clipFields, rebaseForm } from '../copilot-context.js';
 
 const THEME_KEY = 'cookhoard.theme';
 export function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   try { localStorage.setItem(THEME_KEY, theme); } catch { /* private mode */ }
 }
+
+// The form as strings (what the inputs hold), so "unchanged" means what the user sees.
+const formFrom = (s) => ({
+  weeklyBudget: String(s.weeklyBudget ?? ''), defaultServings: String(s.defaultServings ?? ''), sections: s.sections, supermarkets: s.supermarkets.join(', '),
+  ytdlp: s.media.ytdlp ?? '', cookies_from_browser: s.media.cookies_from_browser ?? 'none', cookies_file: s.media.cookies_file ?? '', keyframes: !!s.media.keyframes, transcript: !!s.media.transcript,
+});
 
 function StatusRow({ label, ok, children }) {
   return <li><span className={`dot-state ${ok ? 'ok' : 'off'}`} aria-hidden="true" /><b>{label}</b><span className="muted">{children}</span></li>;
@@ -39,6 +47,10 @@ function Dictionary({ settings, t, toast, lang }) {
   const [alias, setAlias] = useState({ alias: '', ingredient: '' });
   const [busy, setBusy] = useState(false);
   const num = (v) => (v === '' ? undefined : Number(v));
+  useCopilotContext(() => ({ editors: [
+    Object.values(form).some((v) => String(v).trim()) ? { kind: 'ingredient-new', object_id: null, dirty: true, fields: clipFields(form) } : null,
+    alias.alias.trim() || alias.ingredient.trim() ? { kind: 'alias-new', object_id: null, dirty: true, fields: clipFields(alias) } : null,
+  ] }));
 
   async function addIngredient(e) {
     e.preventDefault();
@@ -99,11 +111,20 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const fileRef = useRef(null);
 
-  useEffect(() => { if (loaded.data && !draft) {
-    const s = loaded.data;
-    setDraft({ weeklyBudget: s.weeklyBudget ?? '', defaultServings: s.defaultServings, sections: s.sections, supermarkets: s.supermarkets.join(', '),
-      ytdlp: s.media.ytdlp ?? '', cookies_from_browser: s.media.cookies_from_browser ?? 'none', cookies_file: s.media.cookies_file ?? '', keyframes: !!s.media.keyframes, transcript: !!s.media.transcript });
-  } }, [loaded.data, draft]);
+  // `base` is the form as the server last had it; a reload (also after an assistant turn) moves the fields the user did not touch.
+  const base = useRef(null);
+  useEffect(() => {
+    if (!loaded.data) return;
+    const next = formFrom(loaded.data);
+    if (!base.current) { base.current = next; setDraft(next); return; }
+    if (JSON.stringify(base.current) === JSON.stringify(next)) return;
+    const prev = base.current;
+    base.current = next;
+    setDraft((d) => rebaseForm(prev, next, d));
+  }, [loaded.data]);
+  const changed = changedFields(base.current, draft);
+  useCopilotContext(() => ({ editors: draft ? [{ kind: 'app-settings', object_id: 'settings', dirty: Object.keys(changed).length > 0, changed: Object.keys(changed), fields: clipFields(changed) }] : [] }));
+  useCopilotRefresh(() => { loaded.reload(); status.reload(); });
 
   const sectionName = (id) => loaded.data?.section_labels.find((s) => s.id === id)?.[lang] ?? id;
   const move = (index, delta) => {
@@ -117,11 +138,24 @@ export default function Settings() {
     e.preventDefault();
     setSaving(true);
     try {
-      await call('settings_set', { settings: {
-        weeklyBudget: draft.weeklyBudget === '' ? null : Number(draft.weeklyBudget), defaultServings: Number(draft.defaultServings), sections: draft.sections,
-        supermarkets: draft.supermarkets.split(',').map((x) => x.trim()).filter((x) => x.length >= 2),
-        media: { ytdlp: draft.ytdlp.trim(), cookies_from_browser: draft.cookies_from_browser, cookies_file: draft.cookies_file.trim(), keyframes: draft.keyframes, transcript: draft.transcript },
-      } });
+      // Only the fields the user changed are sent, so a value the assistant set meanwhile is not overwritten.
+      const out = {};
+      if (changed.weeklyBudget !== undefined) out.weeklyBudget = draft.weeklyBudget === '' ? null : Number(draft.weeklyBudget);
+      if (changed.defaultServings !== undefined) out.defaultServings = Number(draft.defaultServings);
+      if (changed.sections !== undefined) out.sections = draft.sections;
+      if (changed.supermarkets !== undefined) out.supermarkets = draft.supermarkets.split(',').map((x) => x.trim()).filter((x) => x.length >= 2);
+      const media = {};
+      if (changed.ytdlp !== undefined) media.ytdlp = draft.ytdlp.trim();
+      if (changed.cookies_from_browser !== undefined) media.cookies_from_browser = draft.cookies_from_browser;
+      if (changed.cookies_file !== undefined) media.cookies_file = draft.cookies_file.trim();
+      if (changed.keyframes !== undefined) media.keyframes = draft.keyframes;
+      if (changed.transcript !== undefined) media.transcript = draft.transcript;
+      if (Object.keys(media).length) out.media = media;
+      if (Object.keys(out).length) {
+        await call('settings_set', { settings: out });
+        const fresh = await loaded.reload();
+        if (fresh) { const next = formFrom(fresh); base.current = next; setDraft(next); }
+      }
       toast(t('settings.saved'));
       status.reload(); refreshCounts();
     } catch (error) { toast(error.message, 'danger'); } finally { setSaving(false); }

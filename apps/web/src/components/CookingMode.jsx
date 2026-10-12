@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../App.jsx';
 import { Badge, Icon } from './ui.jsx';
 import { fmtClock, fmtMinutes, fmtQty } from '../format.js';
+import { useCopilotContext } from '../copilot-hooks.js';
+import { clip } from '../copilot-context.js';
 
 /** Short beep with the Web Audio API; silent when audio is not allowed. */
 function beep() {
@@ -82,6 +84,8 @@ export default function CookingMode({ recipe, onExit }) {
   const ingredientLines = useMemo(() => recipe.ingredients.map((i) => `${i.quantity ? fmtQty(i.quantity, lang) : ''} ${i.unit ?? ''} ${i.name}`.trim()), [recipe, lang]);
   const finished = index === steps.length - 1;
   const ringing = timers.filter((x) => !x.paused && x.end <= now);
+  // The Faustus copilot: which step is on screen and the timers running.
+  useCopilotContext(() => ({ view: { cook: { step: index + 1, of: steps.length, text: clip(step?.text, 400), timers: timers.map((x) => ({ label: x.label, paused: x.paused, seconds_left: x.paused ? x.left : Math.max(0, Math.round((x.end - Date.now()) / 1000)) })) } } }));
 
   return (
     <div className="cooking" role="dialog" aria-label={t('cooking.mode')}>

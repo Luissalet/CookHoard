@@ -1,16 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { call } from '../api.js';
 import { useApp } from '../App.jsx';
 import { useAsync } from '../hooks.js';
 import { Badge, Empty, ErrorNote, Field, Icon, Note, PageHeader, Segmented, Spinner } from '../components/ui.jsx';
 import { ExpiryBadge, RecipeThumb } from '../components/shared.jsx';
 import { daysUntil, fmtDate, fmtMoney, fmtQty } from '../format.js';
+import { useCopilotContext, useCopilotRefresh } from '../copilot-hooks.js';
+import { changedFields, clip, clipFields, rebaseForm } from '../copilot-context.js';
 
 export default function ImportScreen() {
   const { t, go, route } = useApp();
   const tab = ['link', 'text', 'ticket', 'drafts'].includes(route.params[0]) ? route.params[0] : 'link';
   const drafts = useAsync(() => call('recipe_drafts_list', {}), [tab]);
   const queue = useAsync(() => call('ticket_review_list', {}), [tab]);
+  useCopilotContext(() => ({ view: { review_count: queue.data?.count ?? 0, drafts_count: drafts.data?.drafts.length ?? 0 } }));
+  useCopilotRefresh(() => { drafts.reload(); queue.reload(); });
   return (
     <>
       <PageHeader title={t('import')} />
@@ -35,6 +39,7 @@ function LinkImport() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  useCopilotContext(() => ({ editors: [{ kind: 'import-link', object_id: null, dirty: !!(url.trim() || caption.trim()), fields: clipFields({ url, caption, use_model: useModel }) }] }));
 
   const submit = async (e) => {
     e.preventDefault(); setBusy(true); setError(null); setResult(null);
@@ -96,6 +101,7 @@ function TextImport() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [draft, setDraft] = useState(null);
+  useCopilotContext(() => ({ editors: [{ kind: 'import-text', object_id: null, dirty: !!(text.trim() || title.trim()), fields: clipFields({ title, text, use_model: useModel }) }] }));
   const submit = async (e) => {
     e.preventDefault(); setBusy(true); setError(null); setDraft(null);
     try { setDraft((await call('import_recipe_text', { text, ...(title ? { title } : {}), use_model: useModel })).draft); } catch (err) { setError(err); }
@@ -124,6 +130,8 @@ function DraftsTab({ drafts }) {
   const { go } = useApp();
   const [openId, setOpenId] = useState(null);
   const one = useAsync(() => (openId ? call('recipe_draft_get', { draft_id: openId }) : Promise.resolve(null)), [openId]);
+  useCopilotContext(() => ({ view: { draft_id: openId } }));
+  useCopilotRefresh(() => { if (openId) one.reload(); });
   if (openId && one.data) return <><button className="link back" onClick={() => { setOpenId(null); drafts.reload(); }}><Icon name="left" size={16} />{t('import.drafts')}</button><DraftReview draft={one.data.draft} onDone={(id) => go('recipes', id)} onDiscard={() => { setOpenId(null); drafts.reload(); }} /></>;
   const rows = drafts.data?.drafts ?? [];
   return (
@@ -148,6 +156,8 @@ function DraftsTab({ drafts }) {
 const noteText = (t, value) => (String(value).startsWith('no_model:') ? `${t('note.no_model')}${String(value).slice(9)}` : t(`note.${value}`) === `note.${value}` ? value : t(`note.${value}`));
 const CONF = { alta: ['ok', 'high'], media: ['warn', 'medium'], baja: ['danger', 'low'] };
 
+const draftForm = (d) => ({ title: d.title, servings: d.servings ?? '', ingredients: d.ingredients.map((i) => ({ ...i })), steps: d.steps.map((s) => ({ ...s })) });
+
 export function DraftReview({ draft, onDone, onDiscard }) {
   const { t, lang, toast } = useApp();
   const [title, setTitle] = useState(draft.title);
@@ -157,16 +167,37 @@ export function DraftReview({ draft, onDone, onDiscard }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [tone, level] = CONF[draft.confidence.level] ?? CONF.baja;
+  // What the draft looked like when the form was last synced; a refreshed draft only replaces the fields the user did not touch.
+  const base = useRef(draftForm(draft));
+  useEffect(() => {
+    const next = draftForm(draft);
+    const prev = base.current;
+    if (JSON.stringify(prev) === JSON.stringify(next)) return;
+    base.current = next;
+    const merged = rebaseForm(prev, next, { title, servings, ingredients, steps });
+    setTitle(merged.title); setServings(merged.servings); setIngredients(merged.ingredients); setSteps(merged.steps);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
+  const changed = changedFields(base.current, { title, servings, ingredients, steps });
+  useCopilotContext(() => ({ editors: [{
+    kind: 'recipe-draft', object_id: draft.id, dirty: Object.keys(changed).length > 0, changed: Object.keys(changed),
+    fields: {
+      title: clip(title, 200), servings,
+      ingredients: ingredients.slice(0, 40).map((i) => clip([i.quantity, i.unit, i.name].filter((x) => x !== null && x !== undefined && x !== '').join(' '), 120)),
+      steps: steps.slice(0, 30).map((s) => clip(s.text, 200)),
+    },
+  }] }));
   const evidenceLabel = (source) => (source === 'modelo' ? t('step.model') : t(`step.${source}`) === `step.${source}` ? source : t(`step.${source}`));
 
   const accept = async () => {
     setBusy(true); setError(null);
     try {
-      const edits = {
-        title: title.trim() || undefined, servings: servings ? Number(servings) : null,
-        ingredients: ingredients.filter((i) => i.name.trim()).map((i) => ({ name: i.name.trim(), quantity: i.quantity ? Number(i.quantity) : null, unit: i.unit || null, optional: !!i.optional, ...(i.note ? { note: String(i.note).slice(0, 200) } : {}) })),
-        steps: steps.filter((s) => s.text.trim()).map((s) => ({ text: s.text.trim(), ...(s.timerSec ? { timerSec: s.timerSec } : {}) })),
-      };
+      // Only what the user changed travels: the rest of the draft stays as the server has it (evidence, matched ingredients).
+      const edits = {};
+      if (changed.title !== undefined) edits.title = title.trim() || undefined;
+      if (changed.servings !== undefined) edits.servings = servings ? Number(servings) : null;
+      if (changed.ingredients !== undefined) edits.ingredients = ingredients.filter((i) => i.name.trim()).map((i) => ({ name: i.name.trim(), quantity: i.quantity ? Number(i.quantity) : null, unit: i.unit || null, optional: !!i.optional, ...(i.note ? { note: String(i.note).slice(0, 200) } : {}) }));
+      if (changed.steps !== undefined) edits.steps = steps.filter((s) => s.text.trim()).map((s) => ({ text: s.text.trim(), ...(s.timerSec ? { timerSec: s.timerSec } : {}) }));
       const out = await call('recipe_draft_accept', { draft_id: draft.id, edits });
       toast(t('draft.saved'));
       onDone(out.recipe.id);
@@ -253,6 +284,7 @@ function TicketImport({ queue }) {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [mail, setMail] = useState(null);
+  useCopilotContext(() => ({ editors: [{ kind: 'import-ticket', object_id: null, dirty: !!(text.trim() || file.trim()), fields: clipFields({ text, file }) }] }));
 
   const run = async (kind, fn) => {
     setBusy(kind); setError(null); setResult(null); setMail(null);
@@ -309,6 +341,8 @@ function ReviewQueue({ queue }) {
   const { t, toast, refreshCounts } = useApp();
   const rows = queue.data?.lines ?? [];
   const [values, setValues] = useState({});
+  const typed = Object.entries(values).filter(([, v]) => v && String(v).trim());
+  useCopilotContext(() => ({ editors: [typed.length ? { kind: 'ticket-review', object_id: null, dirty: true, fields: { lines: Object.fromEntries(typed.slice(0, 10).map(([k, v]) => [k, clip(String(v), 100)])) } } : null] }));
   const [error, setError] = useState(null);
   const act = async (row, args) => {
     setError(null);

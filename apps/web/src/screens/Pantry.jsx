@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { call } from '../api.js';
 import { useApp } from '../App.jsx';
 import { useAsync } from '../hooks.js';
 import { Badge, Empty, ErrorNote, Field, Icon, Modal, Note, PageHeader, Segmented, Spinner } from '../components/ui.jsx';
 import { ExpiryBadge } from '../components/shared.jsx';
 import { fmtDate, fmtQty } from '../format.js';
+import { useCopilotContext, useCopilotRefresh } from '../copilot-hooks.js';
+import { changedFields, rebaseForm, clipFields } from '../copilot-context.js';
 
 const PLACES = ['nevera', 'despensa', 'congelador'];
 const UNITS = ['', 'ud', 'kg', 'g', 'L', 'ml', 'ración'];
@@ -17,6 +19,10 @@ export default function Pantry() {
   const list = useAsync(() => call('pantry_list', {}), []);
   const items = (list.data?.items ?? []).filter((i) => place === 'all' || i.location === place);
   const counts = list.data?.counts ?? {};
+  useCopilotRefresh(() => { list.reload(); });
+  useCopilotContext(() => ({ view: { place } }));
+  // The item in the open form as the list has it now (the assistant may have changed it since the form opened).
+  const current = editing ? (list.data?.items ?? []).find((i) => i.id === editing.id) ?? editing : null;
 
   const usedUp = async (item) => { await call('set_kitchen_item', { ingredient_id: item.id, checked: false }); toast(`${item.name}: ${t('pantry.usedUp').toLowerCase()}`); list.reload(); refreshCounts(); };
   const grouped = place === 'all' ? PLACES.map((p) => ({ place: p, items: items.filter((i) => i.location === p) })).filter((g) => g.items.length) : [{ place, items }];
@@ -51,27 +57,43 @@ export default function Pantry() {
         </section>
       ))}
       {list.data && list.data.items.some((i) => i.expiry_kind === 'estimated') ? <Note tone="info">{t('pantry.estimated.note')}</Note> : null}
-      {editing ? <ItemModal item={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); list.reload(); }} /> : null}
+      {editing ? <ItemModal item={current} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); list.reload(); }} /> : null}
       {adding ? <ItemModal onClose={() => setAdding(false)} onSaved={() => { setAdding(false); list.reload(); refreshCounts(); }} /> : null}
     </>
   );
 }
 
+const formOf = (item) => ({ place: item?.location ?? 'nevera', qty: item?.qty ?? '', unit: item?.unit ?? '', date: item?.expiry_kind === 'exact' ? item.expiresAt ?? '' : '' });
+
 function ItemModal({ item, onClose, onSaved }) {
   const { t, toast } = useApp();
   const [name, setName] = useState(item?.name ?? '');
-  const [place, setPlace] = useState(item?.location ?? 'nevera');
-  const [qty, setQty] = useState(item?.qty ?? '');
-  const [unit, setUnit] = useState(item?.unit ?? '');
-  const [date, setDate] = useState(item?.expiry_kind === 'exact' ? item.expiresAt ?? '' : '');
+  const [form, setForm] = useState(() => formOf(item));
+  const { place, qty, unit, date } = form;
+  const setPlace = (v) => setForm((f) => ({ ...f, place: v }));
+  const setQty = (v) => setForm((f) => ({ ...f, qty: v }));
+  const setUnit = (v) => setForm((f) => ({ ...f, unit: v }));
+  const setDate = (v) => setForm((f) => ({ ...f, date: v }));
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  // What the list had when the form was last in step with it: a reload (the assistant worked meanwhile) moves the fields the user has
+  // not touched to the new values; saving sends only the fields the user changed.
+  const base = useRef(formOf(item));
+  useEffect(() => {
+    const next = formOf(item), prev = base.current;
+    if (JSON.stringify(next) === JSON.stringify(prev)) return;
+    base.current = next;
+    setForm((f) => rebaseForm(prev, next, f));
+  }, [item]);
+  const changed = changedFields(base.current, form);
+  useCopilotContext(() => ({ editors: [{ kind: 'pantry-item', object_id: item?.id ?? null, dirty: item ? Object.keys(changed).length > 0 : !!(name.trim() || qty !== '' || unit || date), ...(item ? { changed: Object.keys(changed) } : {}), fields: clipFields({ ...(item ? {} : { name }), ...form }) }] }));
 
   const save = async (extra = {}) => {
     setBusy(true); setError(null);
     try {
-      const args = { ingredient: item?.id ?? name.trim(), place, ...(qty !== '' ? { qty: Number(qty) } : {}), ...(unit ? { unit } : {}), ...(date ? { expires_at: date } : {}), ...extra };
-      if (item && place === item.location) delete args.place;
+      const args = item
+        ? { ingredient: item.id, ...(changed.place !== undefined ? { place } : {}), ...(changed.qty !== undefined && qty !== '' ? { qty: Number(qty) } : {}), ...(changed.unit !== undefined && unit ? { unit } : {}), ...(changed.date !== undefined && date ? { expires_at: date } : {}), ...extra }
+        : { ingredient: name.trim(), place, ...(qty !== '' ? { qty: Number(qty) } : {}), ...(unit ? { unit } : {}), ...(date ? { expires_at: date } : {}), ...extra };
       const out = await call('pantry_set', args);
       toast(`${out.item.name}: ${out.item.expiresAt ? fmtDate(out.item.expiresAt) : t('expiry.none')}`);
       onSaved();

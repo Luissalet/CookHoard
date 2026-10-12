@@ -4,6 +4,7 @@ import { useApp } from '../App.jsx';
 import { useAsync } from '../hooks.js';
 import { Badge, Empty, ErrorNote, Icon, PageHeader, Spinner } from '../components/ui.jsx';
 import { fmtMoney, fmtQty } from '../format.js';
+import { useCopilotContext, useCopilotRefresh } from '../copilot-hooks.js';
 
 /** "leche, 2 L" / "2 kg tomate" / "pan" → { name, qty, unit } */
 function parseEntry(text) {
@@ -23,6 +24,8 @@ export default function Shopping() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const data = list.data;
+  useCopilotRefresh(() => { list.reload(); });
+  useCopilotContext(() => ({ view: { picked: [...picked] }, editors: entry.trim() ? [{ kind: 'shopping-entry', object_id: null, dirty: true, fields: { text: entry } }] : [] }));
 
   const copy = async (text) => { try { await navigator.clipboard.writeText(text); toast(t('copied')); } catch { toast(text, 'warn'); } };
   const toggle = (id) => setPicked((set) => { const next = new Set(set); if (next.has(id)) next.delete(id); else next.add(id); return next; });

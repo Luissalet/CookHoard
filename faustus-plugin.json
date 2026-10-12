@@ -105,6 +105,27 @@
       "COOKHOARD_ALLOW_PRIVATE_URLS"
     ]
   },
+  "x-family": {
+    "copilot": {
+      "provider": "faustus",
+      "contract": "1.0",
+      "panel": "/api/copilot/panel.js",
+      "context": [
+        "view.page",
+        "view.tab",
+        "view.filters",
+        "view.object_id",
+        "view.cook",
+        "view.editor",
+        "recipe",
+        "draft",
+        "pantry_item",
+        "shopping_item",
+        "price",
+        "menu"
+      ]
+    }
+  },
   "x-events": [
     "cookhoard.pantry.expiring",
     "cookhoard.recipe.imported",

@@ -4,6 +4,7 @@ import { useApp } from '../App.jsx';
 import { useAsync } from '../hooks.js';
 import { Badge, Empty, ErrorNote, Field, Icon, Modal, PageHeader, Spinner } from '../components/ui.jsx';
 import { fmtDate, fmtMoney, fmtQty } from '../format.js';
+import { useCopilotContext, useCopilotRefresh } from '../copilot-hooks.js';
 
 const RANK = { to_buy: 3, check_stock: 2, in_stock: 1, assumed_staple: 0 };
 /** One row per ingredient: amounts in different units are joined, the most urgent status wins. */
@@ -28,6 +29,8 @@ export default function Menu() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const menu = state.data?.menu;
+  useCopilotRefresh(() => { state.reload(); cost.reload(); totals.reload(); });
+  useCopilotContext(() => ({ view: { ...(picking ? { picking_day: picking.day } : {}) } }));
 
   const act = async (fn, ok) => {
     setBusy(true); setError(null);
@@ -102,6 +105,7 @@ function PickModal({ picking, onClose, onPick }) {
   const [query, setQuery] = useState('');
   const [servings, setServings] = useState(picking.current.servings ?? '');
   const result = useAsync(() => call('find_recipes', { query, limit: 30 }), [query]);
+  useCopilotContext(() => ({ editors: [{ kind: 'menu-pick', object_id: null, dirty: !!query || String(servings) !== String(picking.current.servings ?? ''), fields: { day: picking.day, query, servings } }] }));
   return (
     <Modal title={`${t(`day.${picking.day}`)} · ${t('menu.choose')}`} onClose={onClose}>
       <div className="form">

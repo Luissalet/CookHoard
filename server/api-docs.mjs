@@ -46,6 +46,8 @@ CookHoard has ${tools.length} tools (${reads} read-only). The same catalogue is 
 | \`POST /api/tools/:name\` | Same tools for the web interface: body is the arguments, no token (local-only guard). |
 | \`GET /media/:file\` | Thumbnails saved from imported videos (data folder, \`media/\`). |
 | \`GET /manifest.webmanifest\`, \`GET /sw.js\` | Installable web app. |
+| \`GET /api/copilot/info\`, \`GET /api/copilot/panel.js\`, \`GET /api/copilot/launcher.js\` | Faustus copilot relay (mounted when the built client is served; \`HOARD_COPILOT=0\` turns it off): app id and data space, the Faustus panel script relayed from Faustus, and the launcher the served page loads. |
+| \`POST /api/copilot/proxy\` | Relays only the copilot's own Faustus routes; the Faustus token never reaches the browser. |
 
 Requests must come from \`localhost\`, \`127.0.0.1\` or \`[::1]\`, or from a host listed in \`COOKHOARD_ALLOWED_HOSTS\`.
 

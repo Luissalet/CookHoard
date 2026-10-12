@@ -65,6 +65,25 @@ Todo está en la carpeta de datos: `kitchen.json` (recetas, despensa, lista de l
 - MCP: 56 herramientas (25 de solo lectura). El catálogo completo con argumentos está en [docs/API.md](docs/API.md), generado a partir del código.
 - Eventos: `cookhoard.recipe.imported`, `cookhoard.menu.planned`, `cookhoard.pantry.expiring`.
 
+## Copiloto Faustus
+
+Cada página tiene un botón flotante **Faustus** (abajo a la derecha) que abre el asistente de Faustus en un panel lateral. La conversación, el modelo, la memoria y las herramientas viven en Faustus: esta aplicación solo retransmite el panel y no guarda historial (no tiene chat propio). Necesita Faustus en marcha (`HOARD_FAUSTUS_URL`, por defecto `http://127.0.0.1:7000`); sin él, el botón explica que el copiloto no está disponible y el resto de la aplicación no se ve afectado. La retransmisión se monta cuando se sirve el cliente compilado (`npm run build` y luego `npm start`).
+
+| Ruta | Qué hace |
+| --- | --- |
+| `GET /api/copilot/info` | Id y nombre de la aplicación, espacio de datos y dónde está el script del panel. |
+| `GET /api/copilot/panel.js` | El panel de Faustus, retransmitido desde Faustus (mismo origen). |
+| `GET /api/copilot/launcher.js` | El botón que monta el panel; la página servida lleva su etiqueta. |
+| `POST /api/copilot/proxy` | Retransmite solo las rutas propias del copiloto en Faustus; el token de Faustus nunca llega al navegador. |
+
+Lo que cada turno cuenta al asistente (`window.hoardCopilot.context()`, leído con las mismas herramientas que usa el asistente):
+
+- `view.page` (`today`, `recipes`, `recipe`, `cooking`, `import`, `pantry`, `menu`, `shopping`, `prices`, `settings`) y lo que muestra la pantalla: los filtros de la lista de recetas, las raciones de la receta abierta, el paso del modo cocina, la pestaña de importar (con los recuentos de revisión y borradores), el sitio de la despensa, el día que se está eligiendo en el menú, las filas marcadas de la compra y la búsqueda de precios. CookHoard tiene una sola cocina, así que no hay `project`.
+- `active_objects`: la receta abierta, el borrador que se revisa, el producto de la despensa que se edita, el menú de esta semana, las filas marcadas de la compra y la entrada abierta del libro de precios. Los formularios de creación, `new` y los ids desconocidos no añaden ningún objeto y nunca fallan.
+- `view.editor`: los campos escritos en el formulario abierto y cuáles han cambiado (registro de cocinado, producto de la despensa, elección del menú, entrada de la compra, precio nuevo y vigilancia de precio, importar enlace, texto y ticket, revisión de borrador, líneas de revisión de tickets, ajustes, ingrediente nuevo, alias nuevo). Si hay varios formularios abiertos se listan en `view.editors`.
+
+Cuando el asistente termina un turno, las vistas abiertas se recargan en su sitio; los formularios conservan lo que escribiste y los campos que no tocaste siguen los valores nuevos. Al guardar se envían **solo los campos que cambiaste**: productos de la despensa, la revisión del borrador (cambios de `recipe_draft_accept`) y los ajustes. El copiloto se apaga con `HOARD_COPILOT=0`. El cliente está en `apps/web/src/copilot-context.js` y `apps/web/src/copilot-hooks.js`.
+
 ## Pruebas
 
 ```sh
