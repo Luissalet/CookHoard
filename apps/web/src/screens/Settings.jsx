@@ -5,7 +5,7 @@ import { useAsync } from '../hooks.js';
 import { ErrorNote, Field, Icon, Note, PageHeader, Segmented, Spinner } from '../components/ui.jsx';
 import { fmtDate } from '../format.js';
 import { useCopilotContext, useCopilotRefresh } from '../copilot-hooks.js';
-import { changedFields, clipFields, rebaseForm } from '../copilot-context.js';
+import { changedFields, clipFields, rebaseForm, reconcileSaved } from '../copilot-context.js';
 
 const THEME_KEY = 'cookhoard.theme';
 export function applyTheme(theme) {
@@ -137,6 +137,7 @@ export default function Settings() {
   async function save(e) {
     e.preventDefault();
     setSaving(true);
+    const submitted = draft;   // what this save sends; edits typed while it is in flight must survive its answer
     try {
       // Only the fields the user changed are sent, so a value the assistant set meanwhile is not overwritten.
       const out = {};
@@ -154,7 +155,7 @@ export default function Settings() {
       if (Object.keys(out).length) {
         await call('settings_set', { settings: out });
         const fresh = await loaded.reload();
-        if (fresh) { const next = formFrom(fresh); base.current = next; setDraft(next); }
+        if (fresh) { const next = formFrom(fresh); base.current = next; setDraft((d) => reconcileSaved(submitted, next, d)); }
       }
       toast(t('settings.saved'));
       status.reload(); refreshCounts();

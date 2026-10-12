@@ -26,6 +26,12 @@ export function rebaseForm(previousBase, nextBase, form) {
   return out;
 }
 
+// A save finished: the form becomes what the server now has, except the fields edited after the save was sent (they
+// differ from the submitted snapshot), which stay as typed and stay dirty against the new baseline.
+export function reconcileSaved(submitted, saved, current) {
+  return rebaseForm(submitted, saved, current);
+}
+
 // ---- route ---------------------------------------------------------------------------------------------------------------
 
 export function parseRoute(hash) {

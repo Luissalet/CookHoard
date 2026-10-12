@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildContext, changedFields, rebaseForm, parseRoute, collectContext, registerProvider, clipFields, clip,
+  buildContext, changedFields, rebaseForm, reconcileSaved, parseRoute, collectContext, registerProvider, clipFields, clip,
   recipeObject, draftObject, pantryObject, subscribeRefresh, onTurnEnd,
 } from '../src/copilot-context.js';
 
@@ -165,4 +165,16 @@ test('a finished turn refreshes the open view once, however many signals arrive'
   onTurnEnd();
   await new Promise((resolve) => setTimeout(resolve, 400));
   assert.equal(runs, 1);
+});
+
+test('a save answered late keeps what was typed while it was in flight', async () => {
+  // Typed 80 and saved; while the request is pending the user types 81; meanwhile the assistant set servings to 7.
+  const submitted = { weeklyBudget: '80', defaultServings: '6', supermarkets: 'Mercadona' };
+  let current = { ...submitted };
+  const reply = new Promise((resolve) => setTimeout(() => resolve({ weeklyBudget: '80', defaultServings: '7', supermarkets: 'Mercadona' }), 20));
+  current = { ...current, weeklyBudget: '81' };
+  const saved = await reply;
+  const form = reconcileSaved(submitted, saved, current);
+  assert.deepEqual(form, { weeklyBudget: '81', defaultServings: '7', supermarkets: 'Mercadona' });
+  assert.deepEqual(changedFields(saved, form), { weeklyBudget: '81' }, 'the newer edit stays dirty; saved fields are clean');
 });
