@@ -152,9 +152,11 @@ export default function Settings() {
       if (changed.transcript !== undefined) media.transcript = draft.transcript;
       if (Object.keys(media).length) out.media = media;
       if (Object.keys(out).length) {
+        const submitted = structuredClone(draft);
         await call('settings_set', { settings: out });
-        const fresh = await loaded.reload();
-        if (fresh) { const next = formFrom(fresh); base.current = next; setDraft(next); }
+        // A successful save accepts this snapshot; later typing stays dirty when the refresh arrives.
+        base.current = submitted;
+        await loaded.reload();
       }
       toast(t('settings.saved'));
       status.reload(); refreshCounts();
