@@ -1,5 +1,13 @@
 // Spanish first, English second. Text that comes from the server (reasons, notes, explanations) is Spanish and shown as is.
 export const es = {
+  'stock.check': 'Comprobar cantidades', 'stock.present': 'Ingredientes presentes; comprueba las cantidades',
+  'stock.scope': 'Compara las raciones elegidas con la despensa. No consume existencias ni comprueba la caducidad.',
+  'stock.needed': 'Necesario', 'stock.covered': 'Cubierto', 'stock.missing': 'Falta comprar', 'stock.unknown': 'Sin confirmar',
+  'stock.enough': 'Cantidades obligatorias cubiertas', 'stock.short': 'Faltan cantidades para esta receta', 'stock.unconfirmed': 'Hay cantidades sin confirmar',
+  'stock.forServings': 'Para {n} raciones', 'stock.original': 'Cantidades originales de la receta',
+  'stock.optional': 'Opcionales ({n}) · no afectan al resultado', 'stock.refresh': 'Volver a comprobar',
+  'stock.status.covered': 'Cubierto', 'stock.status.to_buy': 'Falta comprar', 'stock.status.check_stock': 'Cantidad o unidad sin confirmar',
+  'stock.status.assumed_staple': 'Básico supuesto; sin confirmar', 'stock.status.unknown_required_quantity': 'Receta sin cantidad',
   app: 'CookHoard', tagline: 'Cocina de casa',
   'nav.today': 'Hoy', 'nav.recipes': 'Recetas', 'nav.import': 'Importar', 'nav.pantry': 'Despensa', 'nav.menu': 'Menú', 'nav.shopping': 'Compra', 'nav.prices': 'Precios', 'nav.settings': 'Ajustes', 'nav.more': 'Más',
   loading: 'Cargando…', retry: 'Reintentar', save: 'Guardar', cancel: 'Cancelar', close: 'Cerrar', delete: 'Borrar', edit: 'Editar', add: 'Añadir', back: 'Volver', copy: 'Copiar', copied: 'Copiado', done: 'Hecho', yes: 'Sí', no: 'No', all: 'Todo', none: 'Ninguno', more: 'Más', less: 'Menos', search: 'Buscar',
@@ -52,6 +60,14 @@ export const es = {
 };
 
 export const en = {
+  'stock.check': 'Check quantities', 'stock.present': 'Ingredients present; check the quantities',
+  'stock.scope': 'Compare the selected servings with the pantry. This does not consume stock or check expiry.',
+  'stock.needed': 'Required', 'stock.covered': 'Covered', 'stock.missing': 'To buy', 'stock.unknown': 'Unconfirmed',
+  'stock.enough': 'Required quantities covered', 'stock.short': 'Quantities are missing for this recipe', 'stock.unconfirmed': 'Some quantities are unconfirmed',
+  'stock.forServings': 'For {n} servings', 'stock.original': 'Original recipe quantities',
+  'stock.optional': 'Optional ({n}) · excluded from the verdict', 'stock.refresh': 'Check again',
+  'stock.status.covered': 'Covered', 'stock.status.to_buy': 'To buy', 'stock.status.check_stock': 'Quantity or unit unconfirmed',
+  'stock.status.assumed_staple': 'Assumed staple; unconfirmed', 'stock.status.unknown_required_quantity': 'No recipe quantity',
   app: 'CookHoard', tagline: 'Home kitchen',
   'nav.today': 'Today', 'nav.recipes': 'Recipes', 'nav.import': 'Import', 'nav.pantry': 'Pantry', 'nav.menu': 'Menu', 'nav.shopping': 'Shopping', 'nav.prices': 'Prices', 'nav.settings': 'Settings', 'nav.more': 'More',
   loading: 'Loading…', retry: 'Try again', save: 'Save', cancel: 'Cancel', close: 'Close', delete: 'Delete', edit: 'Edit', add: 'Add', back: 'Back', copy: 'Copy', copied: 'Copied', done: 'Done', yes: 'Yes', no: 'No', all: 'All', none: 'None', more: 'More', less: 'Less', search: 'Search',

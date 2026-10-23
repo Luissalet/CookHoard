@@ -5,6 +5,7 @@ import { useAsync } from '../hooks.js';
 import { Badge, Empty, ErrorNote, Field, Icon, Modal, PageHeader, Segmented, Spinner, Stars } from '../components/ui.jsx';
 import { CostLine, ExpiryBadge, Meta, RecipeThumb } from '../components/shared.jsx';
 import CookingMode from '../components/CookingMode.jsx';
+import RecipeStockCheck from '../components/RecipeStockCheck.jsx';
 import { useCopilotContext, useCopilotRefresh } from '../copilot-hooks.js';
 import { fmtDate, fmtMinutes, fmtMoney, fmtQty } from '../format.js';
 import { clipFields } from '../copilot-context.js';
@@ -170,8 +171,9 @@ function RecipeDetail({ id }) {
             })}
           </ul>
           <div className="actions">
-            {missing.length ? <button className="btn" onClick={addMissing}><Icon name="shopping" size={18} />{t('recipe.addMissing')} ({missing.length})</button> : <Badge tone="ok">{t('today.have')}</Badge>}
+            {missing.length ? <button className="btn" onClick={addMissing}><Icon name="shopping" size={18} />{t('recipe.addMissing')} ({missing.length})</button> : <Badge tone="neutral">{t('stock.present')}</Badge>}
           </div>
+          <RecipeStockCheck key={id} recipeId={id} servings={servings} base={base} />
           <div className="costbox">
             <h3>{t('recipe.cost')}</h3>
             {shownCost && (shownCost.total || shownCost.per_serving) ? (

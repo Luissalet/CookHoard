@@ -6,6 +6,12 @@ CookHoard is a local kitchen for Faustus and the Hoard family: recipes, a pantry
 
 ## What it does
 
+In each recipe, **Check quantities** compares the selected servings with the
+pantry: required, covered and missing amounts, with optional ingredients and
+unconfirmed units separate. Changing servings recalculates the open panel;
+**Check again** reads the current pantry. The check uses the existing
+`recipe_check` API/MCP engine and does not reserve or consume ingredients.
+
 - **Recipes.** Search and filter by time, diet, source and saved. Scale servings, see the cost per serving, cooking history with ratings, approximate nutrition, print. Cooking mode shows one step at a time in large type, with timers (sound and vibration), the ingredient list on the side, keyboard navigation and a screen wake lock where the browser allows it.
 - **Recipes from videos and reels.** Paste an Instagram, TikTok, YouTube or Facebook link. The link is read by Links Hoard through the hub when it is running (one yt-dlp for the whole family) and by the yt-dlp on this machine otherwise; it reads the caption and subtitles, and if that is not enough the audio is transcribed by Funes (through the hub); with ffmpeg and a vision model the text on screen is read from a few key frames. Written text (captions, descriptions, on-screen text) goes through a list parser; speech (subtitles, transcript) is read as prose: ingredients are dictionary mentions with the nearest spoken amount ("3 patatas grandes", "4 ó 5 huevos", "una pizca"), steps are sentences grouped at "cuando", "después", "una vez"... with a timer when a duration is said, description text only supplies steps or ingredients when it has list form (a Preparación/Elaboración header, numbered or bulleted lines), otherwise what was said wins, a word followed by "de <ingredient>" ("un batido de huevo") is a preparation and not an ingredient, auto-subtitle "45 huevos" is read as 4–5 with a note, the video title always wins over anything said, and a draft built from speech alone is marked with lower confidence and a note to check quantities. A deterministic parser reads the text first and a local model fills gaps using a JSON schema. The result is always a draft: every ingredient and step shows the line it came from and whether the number was found in the source text, and nothing is saved until you accept it. The thumbnail is saved locally.
 - **Recipes from text.** Paste a recipe in Spanish or English, with or without section headers, bullets or numbering.

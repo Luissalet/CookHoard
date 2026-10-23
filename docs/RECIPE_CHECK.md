@@ -1,5 +1,22 @@
 # Check a recipe against pantry quantities
 
+## Recipe interface
+
+Open a recipe and choose **Check quantities** below its ingredient list. The
+panel follows the serving controls and shows each required amount, allocated
+stock and remaining purchase quantity. A known deficit, confirmed coverage and
+an unconfirmed result have different labels. Assumed staples, unknown recipe
+amounts and stock with incompatible units remain explicitly unconfirmed.
+Optional ingredients are available separately and do not affect the verdict.
+
+**Check again** reads the latest stock; assistant refreshes also update the open
+panel. Ingredient presence alone is labelled separately from quantity coverage.
+No menu, shopping list, pantry quantity or cooking history is changed by the
+check. It does not assess food expiry. Both interface languages use the same
+existing `recipe_check` API/MCP calculation.
+
+## Native tool
+
 Use `recipe_check` to answer “Do I have enough for four?” without first saving
 or replacing a weekly menu:
 

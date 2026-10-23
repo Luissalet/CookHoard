@@ -243,3 +243,15 @@ details > summary { cursor: pointer; color: var(--hoard-text-muted); margin-bott
 }
 @media (max-width: 420px) { .recipe-grid { grid-template-columns: 1fr; } .recipe-card { flex-direction: row; } .recipe-card .thumb { width: 96px; height: auto; min-height: 96px; }}
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+.recipe-stock { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--hoard-border); }
+.recipe-stock__result > p { margin: 12px 0; }
+.recipe-stock__list { list-style: none; padding: 0; margin: 12px 0; }
+.recipe-stock__list > li { padding: 12px 0; border-bottom: 1px solid var(--hoard-border); }
+.recipe-stock__row { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+.recipe-stock__row b { overflow-wrap: anywhere; }
+.recipe-stock .badge { white-space: normal; }
+.recipe-stock dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 8px 0 0; }
+.recipe-stock dt { font-size: 12px; color: var(--hoard-text-muted); }
+.recipe-stock dd { margin: 3px 0 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.recipe-stock summary { cursor: pointer; margin: 14px 0; color: var(--hoard-text-muted); }

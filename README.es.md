@@ -1,5 +1,11 @@
 # CookHoard
 
+En cada receta, **Comprobar cantidades** compara las raciones elegidas con la
+despensa: cantidades necesarias, cubiertas y faltantes, con opcionales y unidades
+sin confirmar aparte. Cambiar las raciones recalcula el panel abierto;
+**Volver a comprobar** lee la despensa actual. Usa el motor nativo API/MCP
+`recipe_check`, sin reservar ni consumir ingredientes.
+
 [English](README.md)
 
 CookHoard es la cocina local de Faustus y de la familia Hoard: recetas, despensa con fechas de caducidad, menú semanal, lista de la compra, tickets del súper y precios. Es una pequeña aplicación web (Express y React, por defecto `http://127.0.0.1:5210`) más un servidor MCP que arranca Faustus. Ambos usan las mismas herramientas y el mismo `kitchen.json`. No necesita cuentas y nada sale del ordenador, salvo los enlaces de vídeo que le pidas leer.
