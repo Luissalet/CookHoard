@@ -305,10 +305,13 @@ export const KITCHEN_TOOLS = [
     } }),
 
   tool({ name: 'cooking_history', readOnly: true, schema: z.object({ recipe_id: z.string().optional(), limit: z.number().int().min(1).max(100).default(20) }),
-    description: 'Read the cooking history and badges. Historial de cocina.\nSinónimos: qué he cocinado, valoraciones, actividad cocina, lo último que hice',
+    description: 'Read the cooking history and badges. Historial de cocina.\nThe latest `limit` records in the order they were recorded, newest first; `total` is how many records match. Each record carries recipe_title: the recipe\'s CURRENT title (not a snapshot of when it was cooked), or null when the recipe no longer exists (deleting a recipe keeps its cooking records).\nSinónimos: qué he cocinado, valoraciones, actividad cocina, lo último que hice',
     run: ({ recipe_id, limit }) => {
       const state = readKitchen();
-      return { cooking: state.makes.filter((make) => !recipe_id || make.recipeId === recipe_id).slice(-limit).reverse(), badges: computeBadges(state.recipes, state.makes) };
+      const titles = new Map(recipesOf(state).map((recipe) => [recipe.id, recipe.title]));
+      const matching = state.makes.filter((make) => !recipe_id || make.recipeId === recipe_id);
+      return { cooking: matching.slice(-limit).reverse().map((make) => ({ ...make, recipe_title: titles.get(make.recipeId) ?? null })),
+        total: matching.length, badges: computeBadges(state.recipes, state.makes) };
     } }),
 
   tool({ name: 'set_recipe_saved', idempotent: true, schema: z.object({ recipe_id: z.string().min(1), saved: z.boolean() }),

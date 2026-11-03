@@ -13,6 +13,7 @@ import { clipFields } from '../copilot-context.js';
 export default function Recipes() {
   const { route } = useApp();
   const [id, mode] = route.params;
+  if (id === 'history' && !mode) return <CookingHistory />;
   if (id && mode === 'cook') return <CookingScreen id={id} />;
   if (id) return <RecipeDetail id={id} />;
   return <RecipeList />;
@@ -43,6 +44,7 @@ function RecipeList() {
   return (
     <>
       <PageHeader title={t('recipes')} sub={result.data ? t('recipes.count', { n: result.data.total }) : ''}>
+        <button className="btn" onClick={() => go('recipes', 'history')}><Icon name="clock" size={16} />{t('cookhist.open')}</button>
         <button className="btn btn-primary" onClick={() => go('import')}><Icon name="plus" size={16} />{t('recipes.new')}</button>
       </PageHeader>
       <div className="toolbar">
@@ -79,6 +81,63 @@ function RecipeList() {
           </article>
         ))}
       </div>
+    </>
+  );
+}
+
+// ───────────────────────────── cooking history ─────────────────────────────
+
+const HISTORY_LIMITS = [20, 50, 100];
+// Local date and time of the record (the moment it was saved), so a late dinner keeps its own day.
+const fmtLocal = (iso, lang, options) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? String(iso || '') : (options.hour ? d.toLocaleTimeString : d.toLocaleDateString).call(d, lang === 'es' ? 'es-ES' : 'en-GB', options);
+};
+
+function CookingHistory() {
+  const { t, lang, go } = useApp();
+  const [limit, setLimit] = useState(20);
+  const history = useAsync(() => call('cooking_history', { limit }), [limit]);
+  const rows = history.data?.cooking ?? [];
+  const total = history.data?.total ?? rows.length;
+  useCopilotRefresh(() => { history.reload(); });
+  useCopilotContext(() => ({ view: { cooking_history: { limit, shown: rows.length, total } } }));
+  const fmtNum = (n) => String(n).replace('.', lang === 'es' ? ',' : '.');
+
+  return (
+    <>
+      <button className="link back" onClick={() => go('recipes')}><Icon name="left" size={16} />{t('cookhist.back')}</button>
+      <PageHeader title={t('cookhist.title')} sub={history.data ? (total > rows.length ? t('cookhist.latest', { n: rows.length, total }) : t('cookhist.all', { total })) : ''}>
+        <Segmented label={t('cookhist.limit')} value={limit} onChange={setLimit} options={HISTORY_LIMITS.map((n) => ({ value: n, label: String(n) }))} />
+        <button className="btn" onClick={history.reload} disabled={history.loading}>{t('cookhist.refresh')}</button>
+      </PageHeader>
+      <ErrorNote error={history.error} onRetry={history.reload} t={t} />
+      {!history.data && history.loading ? <Spinner label={t('loading')} /> : null}
+      {history.data && rows.length === 0 ? <Empty>{t('cookhist.none')}</Empty> : null}
+      {rows.length ? (
+        <ul className="rows card cook-history">
+          {rows.map((m) => (
+            <li key={m.id} data-make-id={m.id}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div>
+                  <b>{fmtLocal(m.createdAt, lang, { day: 'numeric', month: 'short', year: 'numeric' })}</b> <small className="muted">{fmtLocal(m.createdAt, lang, { hour: '2-digit', minute: '2-digit' })}</small>{' · '}
+                  {m.recipe_title !== null && m.recipe_title !== undefined
+                    ? <button className="link" title={t('cookhist.currentTitle')} onClick={() => go('recipes', m.recipeId)}>{m.recipe_title}</button>
+                    : <span title={t('cookhist.unavailableHint')}><Badge tone="warn">{t('cookhist.unavailable')}</Badge> <small className="muted">{m.recipeId}</small></span>}
+                </div>
+                <div className="chips small">
+                  {m.servingsMade !== undefined && m.servingsMade !== null ? <Badge tone="neutral">{t('cookhist.made', { n: fmtNum(m.servingsMade) })}{m.servingsEaten !== undefined && m.servingsEaten !== null ? ` · ${t('cookhist.eaten', { n: fmtNum(m.servingsEaten) })}` : ''}</Badge> : null}
+                  {m.timeTakenMin !== undefined && m.timeTakenMin !== null ? <Badge tone="info"><Icon name="timer" size={12} /> {t('cookhist.minutes', { n: m.timeTakenMin })}</Badge> : null}
+                  {m.wouldRepeat === true ? <Badge tone="ok">{t('cookhist.repeatYes')}</Badge> : null}
+                  {m.wouldRepeat === false ? <Badge tone="warn">{t('cookhist.repeatNo')}</Badge> : null}
+                </div>
+                <p className={m.notes ? 'cook-notes' : 'small muted'} style={{ whiteSpace: 'pre-wrap', margin: '4px 0 0' }}>{m.notes || t('cookhist.noNotes')}</p>
+              </div>
+              {m.rating ? <Stars value={m.rating} /> : <small className="muted">{t('cookhist.unrated')}</small>}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </>
   );
 }

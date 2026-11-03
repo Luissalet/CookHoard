@@ -6,6 +6,7 @@
   "capabilities": [
     "recipes",
     "cooking steps",
+    "cooking history",
     "fridge",
     "shopping list",
     "seasonal recommendations",

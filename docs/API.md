@@ -352,6 +352,8 @@ Phrases: la he hecho, cocinar, valorar receta, hemos comido, sobras
 
 Read the cooking history and badges. Historial de cocina.
 
+The latest `limit` records in the order they were recorded, newest first; `total` is how many records match. Each record carries recipe_title: the recipe's CURRENT title (not a snapshot of when it was cooked), or null when the recipe no longer exists (deleting a recipe keeps its cooking records).
+
 *read-only*
 
 | Argument | Type | Required | Default |
