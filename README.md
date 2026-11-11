@@ -118,3 +118,7 @@ Tests use invented recipes and tickets, a fake yt-dlp, a fake hub (it answers th
 - Recipes are not translated; a recipe stays in the language it was written in.
 
 License: AGPL-3.0-or-later.
+
+## Skills
+
+The `skills` block of `faustus-plugin.json` names the procedures of the family's skill library that fit this app's work: `recipe-import-and-menu-planning`, `web-to-clean-markdown`. The hub's Skills tab shows and changes them. This app does not hand them to connecting agents yet.
