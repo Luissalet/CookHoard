@@ -12,6 +12,7 @@ import { annotationsOf } from '../../server/tools/common.mjs';
 import { dataDir } from '../../server/store.mjs';
 import { version } from '../../server/version.mjs';
 import * as family from '../../server/hoard-link.js';
+import { skillsInstructions, installSkills } from '../../server/hoard-commons/express.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const directory = dataDir();
@@ -88,7 +89,8 @@ async function dispatch(tool, args) {
   }
 }
 
-const server = new McpServer({ name: 'cookhoard-local', version }, { instructions: INSTRUCTIONS });
+const skillsDir = path.join(directory, 'skills');      // procedures from the family's library, copied beside the kitchen file
+const server = new McpServer({ name: 'cookhoard-local', version }, { instructions: skillsInstructions(skillsDir, INSTRUCTIONS) });
 for (const tool of TOOLS) {
   server.registerTool(tool.name, { description: tool.description, inputSchema: tool.schema, annotations: annotationsOf(tool) }, async (args) => {
     try { return mcpResult(await dispatch(tool, args)); }
@@ -100,4 +102,5 @@ for (const tool of TOOLS) {
     }
   });
 }
+await installSkills(server, { dir: skillsDir }).ready();
 await server.connect(new StdioServerTransport());
