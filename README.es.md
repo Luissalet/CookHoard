@@ -1,36 +1,46 @@
 # CookHoard
 
-En cada receta, **Comprobar cantidades** compara las raciones elegidas con la
-despensa: cantidades necesarias, cubiertas y faltantes, con opcionales y unidades
-sin confirmar aparte. Cambiar las raciones recalcula el panel abierto;
-**Volver a comprobar** lee la despensa actual. Usa el motor nativo API/MCP
-`recipe_check`, sin reservar ni consumir ingredientes.
+Aplicación local de cocina: recetas, despensa con caducidades, menú semanal, lista de la compra, tickets de supermercado y precios.
 
-[English](README.md)
+[Read in English](README.md)
 
-CookHoard es la cocina local de Faustus y de la familia Hoard: recetas, despensa con fechas de caducidad, menú semanal, lista de la compra, tickets del súper y precios. Es una pequeña aplicación web (Express y React, por defecto `http://127.0.0.1:5210`) más un servidor MCP que arranca Faustus. Ambos usan las mismas herramientas y el mismo `kitchen.json`. No necesita cuentas y nada sale del ordenador, salvo los enlaces de vídeo que le pidas leer.
+## Qué es
+
+CookHoard es una pequeña aplicación web (Express y React, por defecto `http://127.0.0.1:5210`) más un servidor MCP que arranca Faustus. Ambos usan las mismas herramientas y el mismo `kitchen.json`. Nada necesita cuenta ni sale del ordenador, salvo los enlaces de vídeo que le pidas leer. Cuando algo no puede ejecutarse (sin yt-dlp, sin ffmpeg, sin modelo local, Funes, Kafka, Ledger o Tantalus inalcanzables) la respuesta lo dice; nunca rellena datos que no ha leído.
 
 ## Qué hace
 
-- **Recetas.** Búsqueda y filtros por tiempo, dieta, origen y guardadas. Escalado de raciones, coste por ración, historial con valoraciones, nutrición aproximada e impresión. **Historial de cocina** (botón en Recetas) muestra los últimos 20, 50 o 100 registros de todas las recetas con fecha y hora, el título actual de la receta (o «Receta no disponible» si se borró: sus registros se conservan), valoración o «Sin valorar», raciones hechas y comidas, minutos, si la repetirías y las notas completas; lee `cooking_history` (que ahora devuelve también `total` y `recipe_title`) y no cambia nada. El modo cocina muestra un paso cada vez en letra grande, con temporizadores (sonido y vibración), los ingredientes a un lado, navegación con teclado y pantalla siempre encendida si el navegador lo permite.
-- **Recetas de vídeos y reels.** Pega un enlace de Instagram, TikTok, YouTube o Facebook. El enlace lo lee Links Hoard a través del centro de apps cuando está en marcha (un solo yt-dlp para toda la familia) y, si no, el yt-dlp de este equipo; lee la descripción y los subtítulos y, si no basta, Funes transcribe el audio (a través del centro de apps); con ffmpeg y un modelo de visión se lee el texto en pantalla de unos pocos fotogramas. Primero lee el texto un analizador determinista y después un modelo local rellena huecos con un esquema JSON. El resultado es siempre un borrador: cada ingrediente y cada paso muestra la línea de la que sale y si el número aparece en el texto original, y no se guarda nada hasta que lo aceptas. La miniatura se guarda en local.
-- **Recetas desde texto.** Pega una receta en castellano o en inglés, con o sin encabezados, viñetas o numeración.
-- **Diccionario propio de ingredientes.** Los ingredientes desconocidos se crean al vuelo. Puedes añadir ingredientes con categoría, alias y duración, y enseñar alias como la abreviatura de un ticket. Los alias aprendidos se aplican a recetas y tickets a partir de entonces.
-- **Despensa.** Cada cosa está en la nevera, la despensa o el congelador, con cantidad, fecha de apertura y caducidad. La fecha que escribes tú es exacta; la que sale de reglas generales de conservación es estimada y siempre aparece con `≈` y su motivo. Las sobras de lo cocinado entran en la nevera con fecha.
-- **Tickets y precios.** Pega el texto de un ticket, lee una foto o un PDF con el extractor de Kafka (capa de texto, OCR en los escaneos) o importa los recibos de supermercados que haya en el correo, también con Kafka. Las líneas de comida van a la despensa y al libro de precios; las que no reconoce esperan en una cola de revisión donde dices qué son (y lo recuerda), las marcas como no comida o las ignoras para siempre. Un modelo puede sugerir qué es una línea; la sugerencia se muestra, nunca se aplica sola. Los tickets repetidos se detectan.
-- **Costes.** Coste de una receta y del menú semanal con tus propios precios (mediana de compras recientes), gasto por semana y por mes a partir de tickets, y el gasto en comida registrado en Ledger cuando está en marcha. Los costes con precios que faltan se marcan como parciales.
-- **Qué cocinar.** Ideas para cenar ordenadas por lo que tienes, lo que va a caducar, la temporada y cuánto hace que cocinaste cada plato; las sobras aparecen como opciones. Con `servings` comprueba cantidades obligatorias y déficits; `only_have` exige entonces existencias confirmadas. Sin indicar raciones, recomienda según la presencia de ingredientes.
-- **Comprobar una receta.** `recipe_check(recipe_id, servings)` escala ingredientes y calcula lo que falta sin guardar un menú ni consumir existencias. Separa los opcionales y marca como no confirmadas las cantidades desconocidas, unidades incompatibles y básicos supuestos. [Detalles](docs/RECIPE_CHECK.md).
-- **Menú y lista de la compra.** Un menú semanal con raciones por día, totales de ingredientes de la semana descontando lo que hay, y una lista de la compra agrupada por secciones del súper en el orden que elijas. Copiar como texto o Markdown, imprimir y marcar como comprado (pasa a la despensa).
-- **Vigilar precios.** `tantalus_watch_add` entrega la página de un producto a Tantalus.
-- **Rutina diaria.** A las 09:00 (y al arrancar si se la saltó) CookHoard emite `cookhoard.pantry.expiring` en el bus de la familia cuando algo caduca en los próximos dos días.
-- **Interfaz.** Castellano primero con selector de inglés, oscura por defecto con tema claro, instalable como aplicación web y usable en pantalla de móvil. Pantallas: Hoy, Recetas, Importar, Despensa, Menú, Compra, Precios, Ajustes.
+**Recetas**
+- Busca y filtra por tiempo, dieta, origen y guardadas. Escala raciones, muestra el coste por ración, la nutrición aproximada e imprime.
+- Historial de cocinado: valoración, notas, raciones hechas y comidas, minutos y si la repetirías, con una vista de los últimos registros de todas las recetas (las recetas borradas conservan sus registros).
+- Modo cocina: un paso cada vez en letra grande, temporizadores con sonido y vibración, lista de ingredientes al lado, navegación con teclado y bloqueo de apagado de pantalla donde el navegador lo permite.
+- **Comprobar cantidades**: compara las raciones elegidas con la despensa y muestra lo necesario, lo cubierto y lo que falta, con los ingredientes opcionales y las unidades sin confirmar aparte. No reserva ni consume nada. Véase [docs/RECIPE_CHECK.md](docs/RECIPE_CHECK.md).
 
-Cuando algo no puede ejecutarse, la respuesta lo dice: falta yt-dlp, ffmpeg o un modelo local, o Funes, Kafka, Ledger o Tantalus no responden. Nunca rellena datos que no ha leído.
+**Importar recetas**
+- Desde un vídeo o reel (Instagram, TikTok, YouTube, Facebook): el enlace lo lee Links Hoard a través del hub si está en marcha y, si no, el yt-dlp de este equipo. Lee la descripción y los subtítulos; si no basta, Funes transcribe el audio, y con ffmpeg y un modelo de visión se lee el texto en pantalla de algunos fotogramas clave.
+- Desde texto, en español o inglés, con o sin encabezados de sección, viñetas o numeración; desde una página de receta (JSON-LD).
+- Un analizador determinista lee primero el texto y un modelo local rellena los huecos. El texto hablado se lee como prosa (ingredientes con la cantidad dicha más cercana, pasos agrupados en «cuando», «después», «una vez», temporizadores cuando se dice una duración). El resultado es siempre un borrador: cada ingrediente y paso muestra la línea de la que salió y si su número aparece en el texto original, y nada se guarda hasta que lo aceptas. La miniatura se guarda en local.
 
-## Ponerlo en marcha
+**Despensa e ingredientes**
+- Los artículos están en la nevera, la despensa o el congelador, con cantidad, fecha de apertura y caducidad. La fecha que escribes es exacta; la que sale de reglas generales de conservación es estimada y siempre se marca con `≈` y su base. Las sobras cocinadas entran en la nevera con fecha.
+- Diccionario propio de ingredientes: los desconocidos se crean al vuelo; puedes añadir ingredientes con categoría, alias y vida útil, y enseñar alias (por ejemplo una abreviatura de ticket) que valen desde entonces para recetas y tickets.
 
-Requiere Node 22.13 o superior. Links Hoard, yt-dlp y ffmpeg son opcionales (los enlaces de vídeo necesitan Links Hoard en marcha o un yt-dlp en este equipo; los fotogramas, ffmpeg).
+**Tickets y precios**
+- Pega el texto de un ticket, lee una foto o un PDF con el extractor de Kafka (capa de texto, OCR para escaneos) o importa los tickets de supermercado que haya en el correo a través de Kafka. Las líneas de comida van a la despensa y al libro de precios; las que no reconoce esperan en una cola de revisión donde dices qué son (y lo recuerda), las marcas como no comida o las ignoras para siempre. Un modelo puede sugerir una coincidencia, que se muestra pero nunca se aplica sola.
+- Los formatos escritos en el nombre del producto («3 KG», «500GR», «1,5L», «75 CL», «6 UDS», «6X125G») fijan la cantidad de la despensa y el precio por kg, L o unidad. El nombre de la tienda se lee de la cabecera del ticket cuando ningún supermercado conocido coincide. Se detectan los tickets duplicados.
+- Costes: coste de una receta y del menú semanal con tus propios precios (mediana de compras recientes), gasto por semana y mes desde los tickets, y el gasto en comida registrado en Ledger cuando está en marcha. Los costes con precios que faltan se marcan como parciales.
+- Vigilancia de precios: `tantalus_watch_add` entrega la página de un producto a Tantalus.
+
+**Menú, compra y sugerencias**
+- Menú semanal con raciones por día, totales de ingredientes con el stock descontado y lista de la compra agrupada por sección del supermercado en el orden que elijas. Copia como texto o Markdown, imprime y marca lo comprado (pasa a la despensa).
+- Qué cocinar: ideas de cena ordenadas por lo que tienes, lo que está a punto de caducar, la temporada y lo reciente que cocinaste cada plato; las sobras aparecen como opción. Con un objetivo de `servings`, las recomendaciones comprueban cantidades necesarias y déficits.
+- Rutina diaria: a las 09:00 (y al arrancar si se perdió) CookHoard emite `cookhoard.pantry.expiring` en el bus de la familia cuando algo caduca en dos días.
+
+**Interfaz.** Español primero con opción de inglés, oscura por defecto con tema claro, instalable como aplicación web y usable en ancho de móvil. Pantallas: Hoy, Recetas, Importar, Despensa, Menú, Compra, Precios, Ajustes.
+
+## Cómo arrancarlo
+
+Requiere Node 22.13 o superior. Links Hoard, yt-dlp y ffmpeg son opcionales.
 
 ```sh
 npm install
@@ -38,57 +48,55 @@ npm run build        # compila la interfaz web en apps/web/dist
 npm start            # aplicación en http://127.0.0.1:5210
 ```
 
-Con Faustus: registra [`faustus-plugin.json`](faustus-plugin.json) y pon `COOKHOARD_DIR` en esta carpeta. Faustus lanza `apps/mcp/bootstrap.mjs`; ese puente manda cada llamada a la aplicación en marcha, la arranca si no responde y ejecuta las herramientas en el mismo proceso si no consigue arrancarla. Aplicación y puente escriben el mismo archivo con un bloqueo, así que ninguno pierde los cambios del otro.
+Para vídeos en Windows: `winget install yt-dlp.yt-dlp` y `winget install Gyan.FFmpeg`. Instagram y TikTok suelen rechazar descargas anónimas: en Ajustes elige el navegador cuyas cookies usar (Edge, Chrome o Firefox) o un fichero `cookies.txt`. Una ruta de yt-dlp o unas cookies fijadas en Ajustes van primero, y solo se consultan las herramientas de la familia cuando no hay ninguna.
 
-Preparación en Windows para los vídeos: `winget install yt-dlp.yt-dlp` y `winget install Gyan.FFmpeg`. Instagram y TikTok suelen rechazar descargas anónimas: en Ajustes elige el navegador del que tomar las cookies (Edge, Chrome o Firefox) o un archivo `cookies.txt`. La ruta de yt-dlp o las cookies de Ajustes son decisión tuya y van primero (las herramientas de la familia no pueden recibirlas): CookHoard usa entonces el yt-dlp de este equipo y solo pregunta a Links Hoard cuando no hay ninguno.
-
-### Ajustes
-
-Idioma, tema (se guarda en el navegador), presupuesto semanal, raciones por defecto, orden de las secciones de la compra, nombres de supermercados para los tickets del correo, ruta de yt-dlp, cookies (navegador o archivo), leer el texto en pantalla, transcribir el audio con Funes, estado de yt-dlp, ffmpeg, modelos, centro de apps y rutina diaria, descarga y restauración de la copia de seguridad, y el diccionario de ingredientes.
+**Ajustes** incluye idioma, tema, presupuesto semanal, raciones por defecto, orden de las secciones de la compra, nombres de supermercados para tickets del correo, ruta de yt-dlp, cookies, lectura del texto en pantalla, transcripción con Funes, estado de yt-dlp, ffmpeg, modelos, hub y rutina diaria, descarga y restauración de copias de seguridad y el diccionario de ingredientes.
 
 ### Variables de entorno
 
 | Variable | Significado |
 | --- | --- |
-| `COOKHOARD_PORT` (o `PORT`) | Puerto, por defecto 5210. Con `PORT_STRICT=1` la aplicación termina en lugar de elegir otro. |
+| `COOKHOARD_PORT` (o `PORT`) | Puerto, por defecto 5210. Con `PORT_STRICT=1` la aplicación sale en lugar de elegir otro puerto. |
 | `COOKHOARD_DATA_DIR` | Carpeta de datos. Por defecto `%LOCALAPPDATA%\CookHoard` en Windows, `~/.local/share/CookHoard` en el resto. |
 | `COOKHOARD_ALLOWED_HOSTS` | Nombres de host adicionales permitidos además de localhost. |
 | `COOKHOARD_SCHEDULER=0` | Desactiva la rutina diaria. |
-| `COOKHOARD_YTDLP`, `COOKHOARD_FFMPEG`, `COOKHOARD_PYTHON` | Rutas de yt-dlp y ffmpeg (un programa, o un script `.js`/`.mjs` que se ejecuta con Node) y el Python que ejecuta `python -m yt_dlp`. También se encuentran las variables de la familia `HOARD_YTDLP` y `HOARD_FFMPEG` y la carpeta compartida `$HOARD_HOME/bin` (por defecto `~/.hoard/bin`). Un script `.py` ya no se ejecuta directamente. |
-| `COOKHOARD_ALLOW_PRIVATE_URLS=1` | Permite leer páginas de recetas y miniaturas de la red local. Por defecto solo se abren direcciones públicas (se rechazan las de loopback, privadas, de enlace local y de metadatos de la nube, también tras una redirección). |
+| `COOKHOARD_YTDLP`, `COOKHOARD_FFMPEG`, `COOKHOARD_PYTHON` | Rutas de yt-dlp y ffmpeg (un programa, o un script `.js`/`.mjs` ejecutado con Node) y del Python que ejecuta `python -m yt_dlp`. También se encuentran `HOARD_YTDLP`, `HOARD_FFMPEG` y la carpeta compartida `$HOARD_HOME/bin` (por defecto `~/.hoard/bin`). |
+| `COOKHOARD_ALLOW_PRIVATE_URLS=1` | Permite leer páginas de recetas y miniaturas de la red local. Por defecto solo se abren direcciones públicas (se rechazan las de bucle local, privadas, de enlace local y de metadatos de nube, incluidas las redirecciones). |
 | `COOKHOARD_URL`, `COOKHOARD_TOKEN`, `COOKHOARD_TOKEN_FILE` | Dónde encuentra el puente la aplicación y su token. |
 | `COOKHOARD_AUTOSTART=0` | El puente no arranca la aplicación. |
-| `COOKHOARD_MODE=inprocess` | El puente nunca hace de intermediario: ejecuta él las herramientas. |
+| `COOKHOARD_MODE=inprocess` | El puente nunca hace de proxy; ejecuta las herramientas él mismo. |
+| `HOARD_FAUSTUS_URL`, `HOARD_COPILOT=0` | Dirección de Faustus (por defecto `http://127.0.0.1:7000`); desactiva el copiloto. |
 
 ### Datos
 
-Todo está en la carpeta de datos: `kitchen.json` (recetas, despensa, lista de la compra, diccionario, tickets, libro de precios, borradores, ajustes), `media/` (miniaturas), `mcp-token`, `app-url`, `app.pid`, `scheduler.json`. Una cocina escrita por la versión 0.1 se lee como versión 2 en memoria; la primera escritura guarda la versión 2 y conserva el original como `kitchen.json.v1.bak`. `export_kitchen` e `import_kitchen` aceptan ambas versiones.
+Todo está en la carpeta de datos: `kitchen.json` (recetas, despensa, lista de la compra, diccionario, tickets, libro de precios, borradores, ajustes), `media/` (miniaturas), `mcp-token`, `app-url`, `app.pid`, `scheduler.json`. Los ficheros de cocina antiguos se actualizan en la primera escritura, conservando el original como `.bak`. `export_kitchen` e `import_kitchen` aceptan ambas versiones.
 
-## Interfaces
+## Conexión con Faustus y el Hub
 
-- Aplicación web: las pantallas de arriba. Llaman a las mismas herramientas que el asistente mediante `POST /api/tools/:name`.
-- Rutas de agente: `GET /api/health`, `GET /api/agent/tools`, `POST /api/agent/call` con `Authorization: Bearer <contenido de mcp-token>` (el token se crea una vez y se conserva entre arranques; los resultados de más de 100 KB se recortan con un bloque `truncated` que dice qué se quitó). Las peticiones deben venir de la propia máquina. Los errores comparten un solo formato `{ error, code?, hint?, issues? }`.
-- MCP: 56 herramientas (25 de solo lectura). El catálogo completo con argumentos está en [docs/API.md](docs/API.md), generado a partir del código.
+Registra [`faustus-plugin.json`](faustus-plugin.json) y fija `COOKHOARD_DIR` en esta carpeta. Faustus lanza `apps/mcp/bootstrap.mjs`; ese puente envía cada llamada a la aplicación en marcha, la arranca si no responde y ejecuta las herramientas en el mismo proceso si no puede arrancar. Aplicación y puente escriben el mismo fichero bajo un bloqueo.
+
+- La web llama a las mismas herramientas que el asistente mediante `POST /api/tools/:name`. Rutas para agentes: `GET /api/health`, `GET /api/agent/tools`, `POST /api/agent/call` con `Authorization: Bearer <contenido de mcp-token>` (las peticiones deben venir de la propia máquina; los resultados grandes se recortan con un bloque `truncated`). Los errores comparten un sobre `{ error, code?, hint?, issues? }`.
+- Herramientas MCP, por grupos: recetas (`find_recipes`, `get_recipe`, `recipe_check`, `save_recipe`, `update_recipe`, `delete_recipe`, `set_recipe_saved`, `saved_recipes`, `record_cooking`, `cooking_history`), importación (`import_recipe_url`, `import_recipe_jsonld`, `import_recipe_video`, `import_recipe_text`, la familia `recipe_draft_*`), despensa e ingredientes (`pantry_list`, `pantry_set`, `set_expiry`, `use_expiring`, `ingredients_search`, `ingredient_add`, `ingredient_alias_add`), menú y compra (`recommend_recipes`, `plan_week`, `set_menu_day`, `change_menu_day`, `menu_ingredients`, `add_menu_missing`, `shopping_list`, `shopping_mark_bought`), tickets y precios (`ticket_import_text`, `ticket_import_file`, `ticket_import_mail`, `tickets_list`, `ticket_review_list`, `ticket_line_map`, `price_book`, `tantalus_watch_add`), y `kitchen_state`, `export_kitchen`, `import_kitchen`. El catálogo completo con argumentos está en [docs/API.md](docs/API.md), generado a partir del código.
 - Eventos: `cookhoard.recipe.imported`, `cookhoard.menu.planned`, `cookhoard.pantry.expiring`.
+- Servicios opcionales: Links Hoard (enlaces de vídeo), Funes (transcripción de audio), Kafka (documentos de tickets y recibos del correo), Ledger (gasto en comida), Tantalus (vigilancia de precios), todos a través del hub.
 
-## Copiloto Faustus
+**Copiloto Faustus.** Cada página tiene un botón flotante de **Faustus** que abre el asistente en un panel lateral. La conversación, el modelo, la memoria y las herramientas viven en Faustus; esta aplicación solo retransmite el panel y no guarda historial. Sin Faustus el botón explica que el copiloto no está disponible y el resto de la aplicación no se ve afectado. Rutas de retransmisión: `GET /api/copilot/info`, `GET /api/copilot/panel.js`, `GET /api/copilot/launcher.js`, `POST /api/copilot/proxy` (solo las rutas propias del copiloto en Faustus; el token de Faustus nunca llega al navegador).
 
-Cada página tiene un botón flotante **Faustus** (abajo a la derecha) que abre el asistente de Faustus en un panel lateral. La conversación, el modelo, la memoria y las herramientas viven en Faustus: esta aplicación solo retransmite el panel y no guarda historial (no tiene chat propio). Necesita Faustus en marcha (`HOARD_FAUSTUS_URL`, por defecto `http://127.0.0.1:7000`); sin él, el botón explica que el copiloto no está disponible y el resto de la aplicación no se ve afectado. La retransmisión se monta cuando se sirve el cliente compilado (`npm run build` y luego `npm start`).
+Cada turno informa al asistente de la vista actual (página, filtros, raciones de la receta abierta, paso del modo cocina, pestaña de importación, lugar de la despensa, día del menú, filas marcadas de la compra, búsqueda de precios), de los objetos activos (receta abierta, borrador en revisión, artículo de despensa en edición, menú de la semana, filas marcadas, entrada de precio abierta) y de los campos escritos en los formularios abiertos y cuáles cambiaron. Cuando el asistente termina un turno, las vistas abiertas se recargan en el sitio y los formularios conservan lo escrito. Al guardar solo se envían los campos que has cambiado. El cliente está en `apps/web/src/copilot-context.js` y `apps/web/src/copilot-hooks.js`.
 
-| Ruta | Qué hace |
-| --- | --- |
-| `GET /api/copilot/info` | Id y nombre de la aplicación, espacio de datos y dónde está el script del panel. |
-| `GET /api/copilot/panel.js` | El panel de Faustus, retransmitido desde Faustus (mismo origen). |
-| `GET /api/copilot/launcher.js` | El botón que monta el panel; la página servida lleva su etiqueta. |
-| `POST /api/copilot/proxy` | Retransmite solo las rutas propias del copiloto en Faustus; el token de Faustus nunca llega al navegador. |
+**Skills.** `faustus-plugin.json` nombra los procedimientos de la biblioteca de skills de la familia que encajan con esta app (`recipe-import-and-menu-planning`, `web-to-clean-markdown`); la pestaña Skills del hub los muestra y los cambia.
 
-Lo que cada turno cuenta al asistente (`window.hoardCopilot.context()`, leído con las mismas herramientas que usa el asistente):
+## Estructura del proyecto
 
-- `view.page` (`today`, `recipes`, `recipe`, `cooking`, `import`, `pantry`, `menu`, `shopping`, `prices`, `settings`) y lo que muestra la pantalla: los filtros de la lista de recetas, las raciones de la receta abierta, el paso del modo cocina, la pestaña de importar (con los recuentos de revisión y borradores), el sitio de la despensa, el día que se está eligiendo en el menú, las filas marcadas de la compra y la búsqueda de precios. CookHoard tiene una sola cocina, así que no hay `project`.
-- `active_objects`: la receta abierta, el borrador que se revisa, el producto de la despensa que se edita, el menú de esta semana, las filas marcadas de la compra y la entrada abierta del libro de precios. Los formularios de creación, `new` y los ids desconocidos no añaden ningún objeto y nunca fallan.
-- `view.editor`: los campos escritos en el formulario abierto y cuáles han cambiado (registro de cocinado, producto de la despensa, elección del menú, entrada de la compra, precio nuevo y vigilancia de precio, importar enlace, texto y ticket, revisión de borrador, líneas de revisión de tickets, ajustes, ingrediente nuevo, alias nuevo). Si hay varios formularios abiertos se listan en `view.editors`.
-
-Cuando el asistente termina un turno, las vistas abiertas se recargan en su sitio; los formularios conservan lo que escribiste y los campos que no tocaste siguen los valores nuevos. Al guardar se envían **solo los campos que cambiaste**: productos de la despensa, la revisión del borrador (cambios de `recipe_draft_accept`) y los ajustes. El copiloto se apaga con `HOARD_COPILOT=0`. El cliente está en `apps/web/src/copilot-context.js` y `apps/web/src/copilot-hooks.js`.
+| Ruta | Contenido |
+|---|---|
+| `server/` | servidor Express, arranque, rutas para agentes, planificador |
+| `server/hoard-link.js`, `server/hoard-commons/` | biblioteca de la familia incluida (solo lectura; se actualiza desde el repositorio de Hoard Link, nunca se edita) |
+| `packages/core/` | lógica de recetas, despensa, tickets, precios y menú, con su propio analizador de subtítulos (también corre en el navegador) |
+| `apps/web/` | interfaz React |
+| `apps/mcp/` | puente MCP que arranca Faustus |
+| `docs/` | `API.md` (generado), `RECIPE_CHECK.md` |
+| `scripts/` | generador de la documentación de la API |
 
 ## Pruebas
 
@@ -100,21 +108,18 @@ npm run test:web
 npm run docs:api       # regenera docs/API.md (una prueba falla si está desactualizado)
 ```
 
-Las pruebas usan recetas y tickets inventados, un yt-dlp falso, un centro de apps falso (responde al proxy HTTP del centro dentro del proceso, de modo que las llamadas a Links, Funes y Kafka pasan por el mismo cliente que en producción) y un reloj inyectable.
-
-## Código compartido
-
-`server/hoard-link.js` y `server/hoard-commons/` son la biblioteca de la familia incluida tal cual (solo lectura: se refrescan desde el repositorio de Hoard Link, nunca se editan). De ahí vienen el filtro de peticiones, la búsqueda de puerto, el arranque, el archivo del token, las rutas de agente, el formato de errores, las escrituras atómicas, el lector de páginas con su política de direcciones, los lectores de JSON-LD y metadatos de página, el buscador y ejecutor de yt-dlp y ffmpeg, el analizador de subtítulos, las frases de fallo y los clientes de los servicios de Links, Funes y Kafka. `packages/core` conserva su propio analizador de subtítulos porque también se empaqueta para el navegador, donde no caben los módulos de la biblioteca (solo Node); el servidor usa el de la biblioteca.
+Las pruebas usan recetas y tickets inventados, un yt-dlp falso, un hub falso y un reloj inyectable.
 
 ## Límites
 
-- La importación de vídeo depende de que la plataforma permita la descarga. Sin cookies, Instagram y TikTok suelen rechazarla; entonces el borrador lo dice y usa el texto que pegues. Links Hoard usa su propio ajuste de cookies, no el de CookHoard.
-- Una foto o un PDF de un ticket se lee, no se archiva: el extractor de Kafka no guarda copia (los recibos que el lector de correo ya archivó siguen llevando su identificador de documento de Kafka).
-- Leer audio, fotogramas, fotos y correo necesita que Funes, un modelo de visión, Kafka y el centro de apps estén en marcha. Esos caminos están probados con simulaciones, no con las aplicaciones reales.
-- Las fechas de caducidad que no escribes tú son estimaciones de reglas generales, no la fecha impresa en el envase.
+- La importación de vídeo depende de que la plataforma permita la descarga. Sin cookies, Instagram y TikTok suelen rechazarla; el borrador lo dice y usa el texto que pegues.
+- Una foto o PDF de un ticket se lee, no se archiva: Kafka no guarda copia.
+- Leer audio, fotogramas, fotos y correo requiere Funes, un modelo de visión, Kafka y el hub en marcha.
+- Las caducidades que no escribes tú son estimaciones de reglas generales, no la fecha impresa en el envase.
 - Los costes y el gasto son tan completos como tu libro de precios; los totales incompletos se marcan.
-- `stock_sufficient` comprueba cantidades obligatorias, no caducidad ni aptitud de los alimentos. Solo convierte g/kg y ml/L; no deduce tamaños de envase ni densidades. Para escalar se necesitan las raciones base de la receta.
-- El texto que genera el servidor (motivos, notas) está en castellano en los dos idiomas de la interfaz.
-- Las recetas no se traducen: cada una queda en el idioma en que se escribió.
+- Las comprobaciones de stock miran solo cantidades necesarias, no caducidad ni idoneidad del alimento. Las conversiones son solo g/kg y ml/L; no se deducen tamaños de envase ni densidades. Escalar exige un rendimiento de receta conocido.
+- Los textos que vienen del servidor (motivos, notas) están en español en ambos idiomas de la interfaz. Las recetas no se traducen.
 
-Licencia: AGPL-3.0-or-later.
+## Licencia
+
+AGPL-3.0-or-later.
